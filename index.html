@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bureaucratic-control // literature network</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #f7f7f8;
+  --surface: #ffffff;
+  --surface2: #f0f0f2;
+  --border: #e0e0e3;
+  --border-hi: #b0b0b5;
+  --t1: #111;
+  --t2: #2a2a2e;
+  --t3: #555;
+  --t4: #888;
+  --t5: #c0c0c5;
+  --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  --sans: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  --radius: 6px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+html, body { height: 100%; overflow: hidden; }
+body { font-family: var(--mono); background: var(--bg); color: var(--t2); }
+
+#app { display: grid; grid-template-columns: 360px 1fr; height: 100vh; height: 100dvh; }
+
+/* ---- SIDEBAR ---- */
+#sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  box-shadow: 2px 0 12px rgba(0,0,0,0.04);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sb-header {
+  padding: 28px 24px 20px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--surface2) 100%);
+}
+
+.sb-header .pre {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--t4);
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  font-family: var(--mono);
+}
+
+.sb-header .name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--t1);
+  line-height: 1.45;
+  font-family: var(--sans);
+}
+
+.sb-controls {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ctrl-lbl {
+  font-size: 12px;
+  color: var(--t4);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+#search {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--t1);
+  font-family: var(--mono);
+  font-size: 14px;
+  outline: none;
+  margin-bottom: 20px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+#search:focus { border-color: var(--t3); box-shadow: 0 0 0 3px rgba(0,0,0,0.06); }
+#search::placeholder { color: var(--t5); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 16px; }
+
+.chip {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--t4);
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.4px;
+}
+.chip:hover { border-color: var(--t3); color: var(--t3); background: rgba(0,0,0,0.02); }
+.chip.on { border-color: var(--t2); color: var(--t1); background: var(--surface2); font-weight: 500; }
+
+.edge-toggles { display: flex; gap: 6px; }
+
+.etog {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--t4);
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.etog:hover { border-color: var(--t3); background: rgba(0,0,0,0.02); }
+.etog .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--t5); transition: background 0.15s; }
+.etog.on { border-color: var(--t2); color: var(--t2); background: var(--surface2); }
+.etog.on .dot { background: var(--t1); }
+
+/* ---- DETAIL ---- */
+#detail {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+#detail::-webkit-scrollbar { width: 4px; }
+#detail::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.d-empty {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--t5);
+  letter-spacing: 0.5px;
+}
+
+.d-body { padding: 24px 26px; }
+
+.d-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--t1);
+  line-height: 1.5;
+  margin-bottom: 16px;
+  font-family: var(--sans);
+}
+
+.d-field {
+  font-size: 13px;
+  margin-bottom: 5px;
+  display: flex;
+  line-height: 1.6;
+}
+.d-field .k { color: var(--t4); width: 72px; flex-shrink: 0; font-weight: 500; }
+.d-field .v { color: var(--t2); }
+.d-field .v.dim { color: var(--t4); }
+.d-field .v a { color: var(--t3); text-decoration: none; transition: color 0.15s; }
+.d-field .v a:hover { color: var(--t1); text-decoration: underline; }
+
+.d-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 12px 0;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--t4);
+  letter-spacing: 0.3px;
+}
+.badge.hi { border-color: var(--t3); color: var(--t1); background: var(--surface2); font-weight: 500; }
+
+.d-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0 12px;
+}
+
+.d-sec-title {
+  font-size: 12px;
+  color: var(--t4);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.d-link {
+  font-size: 13px;
+  padding: 7px 10px;
+  margin: 2px 0;
+  border-radius: var(--radius);
+  color: var(--t3);
+  cursor: pointer;
+  transition: all 0.12s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.d-link:hover { background: var(--surface2); color: var(--t1); }
+.d-link .lt { font-size: 11px; color: var(--t5); }
+
+.d-abstract {
+  font-size: 12px;
+  color: var(--t3);
+  line-height: 1.65;
+  font-family: var(--sans);
+  margin-top: 4px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+.d-abstract.expanded {
+  -webkit-line-clamp: unset;
+  display: block;
+}
+.d-abs-toggle {
+  font-size: 11px;
+  color: var(--t4);
+  cursor: pointer;
+  margin-top: 5px;
+  font-family: var(--mono);
+  transition: color 0.15s;
+  user-select: none;
+}
+.d-abs-toggle:hover { color: var(--t1); }
+
+/* ---- CANVAS ---- */
+#canvas-wrap { position: relative; overflow: hidden; background: var(--bg); min-height: 0; }
+
+#network-svg { width: 100%; height: 100%; display: block; }
+
+#legend-box {
+  position: absolute;
+  bottom: 18px;
+  left: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  font-size: 12px;
+  color: var(--t3);
+  z-index: 5;
+  line-height: 2;
+  box-shadow: var(--shadow-md);
+}
+
+.lg-row { display: flex; align-items: center; gap: 10px; }
+.lg-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.lg-line { width: 22px; height: 0; flex-shrink: 0; }
+.lg-sep { height: 1px; background: var(--border); margin: 6px 0; }
+
+#stats-bar {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 22px;
+  font-size: 13px;
+  color: var(--t3);
+  z-index: 5;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  gap: 18px;
+  letter-spacing: 0.3px;
+}
+#stats-bar .n { color: var(--t1); font-weight: 700; }
+
+#tip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--surface);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--t1);
+  z-index: 20;
+  max-width: 360px;
+  line-height: 1.5;
+  opacity: 0;
+  transition: opacity 0.1s;
+  font-family: var(--sans);
+  box-shadow: var(--shadow-md);
+}
+#tip .sub { color: var(--t4); font-size: 12px; margin-top: 4px; font-family: var(--mono); }
+
+/* ---- MOBILE TOGGLE ---- */
+#mob-toggle {
+  display: none;
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 15;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--t2);
+  font-family: var(--mono);
+  font-size: 18px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: var(--shadow-sm);
+}
+
+#mob-close {
+  display: none;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 16;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--t2);
+  font-family: var(--mono);
+  font-size: 18px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* ---- MOBILE BOTTOM SHEET ---- */
+#mob-detail {
+  display: none;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 12;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-radius: 12px 12px 0 0;
+  max-height: 45vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  transition: transform 0.25s ease;
+}
+#mob-detail::-webkit-scrollbar { width: 3px; }
+#mob-detail::-webkit-scrollbar-thumb { background: var(--border); }
+#mob-detail .handle {
+  width: 32px;
+  height: 3px;
+  background: var(--t5);
+  border-radius: 2px;
+  margin: 8px auto 4px;
+}
+
+/* ---- TABLET ---- */
+@media (max-width: 1024px) and (min-width: 769px) {
+  #app { grid-template-columns: 300px 1fr; }
+  .sb-header .name { font-size: 15px; }
+  #credit-box { font-size: 10px; padding: 10px 12px; max-width: 240px; }
+}
+
+@media (max-width: 768px) {
+  #app {
+    display: block;
+    height: 100vh;
+    height: 100dvh;
+    width: 100vw;
+  }
+
+  #canvas-wrap {
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 320px;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 15;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+  #sidebar.open {
+    transform: translateX(0);
+  }
+
+  #mob-toggle { display: flex; }
+  #sidebar.open ~ #canvas-wrap #mob-toggle { display: none; }
+
+  #mob-close { display: none; }
+  #sidebar.open #mob-close { display: flex; }
+
+  #detail { display: none; }
+
+  #mob-detail.show { display: block; }
+
+  #legend-box {
+    bottom: 10px;
+    left: 10px;
+    padding: 10px 14px;
+    font-size: 10px;
+    max-width: 180px;
+  }
+  .lg-row { gap: 6px; }
+  .lg-dot { width: 7px; height: 7px; }
+
+  #stats-bar {
+    top: 12px;
+    padding: 5px 12px;
+    font-size: 10px;
+    gap: 10px;
+    right: 12px;
+    left: auto;
+    transform: none;
+  }
+
+  #tip { display: none; }
+
+  #credit-box {
+    display: none;
+  }
+
+  #canvas-wrap { grid-column: 1; }
+}
+
+/* Backdrop for sidebar on mobile */
+#mob-backdrop {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.25);
+  z-index: 14;
+}
+#mob-backdrop.show { display: block; }
+
+/* ---- CREDIT BOX ---- */
+#credit-box {
+  position: absolute;
+  bottom: 18px;
+  right: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 11px;
+  color: var(--t4);
+  z-index: 5;
+  line-height: 1.7;
+  box-shadow: var(--shadow-sm);
+  max-width: 280px;
+  font-family: var(--mono);
+}
+#credit-box a {
+  color: var(--t3);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+#credit-box a:hover {
+  color: var(--t1);
+  text-decoration: underline;
+}
+#credit-box .credit-label {
+  font-size: 10px;
+  color: var(--t5);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+</style>
+</head>
+<body>
+<div id="mob-backdrop"></div>
+<div id="app">
+<div id="sidebar">
+  <button id="mob-close">&times;</button>
+  <div class="sb-header">
+    <div class="pre">literature network</div>
+    <div class="name">Political Economy of Bureaucratic Control</div>
+  </div>
+  <div class="sb-controls">
+    <div class="ctrl-lbl">search</div>
+    <input type="text" id="search" placeholder="author, title, tag...">
+    <div class="ctrl-lbl">filter by part</div>
+    <div class="chips" id="partF">
+      <button class="chip on" data-p="all">all</button>
+      <button class="chip" data-p="0">intro</button>
+      <button class="chip" data-p="1">i: theory</button>
+      <button class="chip" data-p="2">ii: control</button>
+      <button class="chip" data-p="3">iii: autonomy</button>
+      <button class="chip" data-p="4">appendix</button>
+    </div>
+    <div class="ctrl-lbl">connections</div>
+    <div class="edge-toggles">
+      <button class="etog on" id="tA"><span class="dot"></span>author</button>
+      <button class="etog on" id="tT"><span class="dot"></span>thematic</button>
+    </div>
+  </div>
+  <div id="detail"><div class="d-empty">click a node</div></div>
+</div>
+<div id="canvas-wrap">
+  <button id="mob-toggle">&#9776;</button>
+  <svg id="network-svg"></svg>
+  <div id="mob-detail"></div>
+  <div id="legend-box">
+    <div class="lg-row"><span class="lg-dot" style="background:rgba(0,0,0,0.85)"></span> Part I: Theory (wk 2-6)</div>
+    <div class="lg-row"><span class="lg-dot" style="background:rgba(0,0,0,0.60)"></span> Part II: Control (wk 7-11)</div>
+    <div class="lg-row"><span class="lg-dot" style="background:rgba(0,0,0,0.42)"></span> Part III: Autonomy (wk 12-14)</div>
+    <div class="lg-row"><span class="lg-dot" style="background:rgba(0,0,0,0.20)"></span> Intro / Appendix</div>
+    <div class="lg-sep"></div>
+    <div class="lg-row"><span class="lg-dot" style="background:rgba(0,0,0,0.80);width:12px;height:12px"></span> required (large)</div>
+    <div class="lg-row"><span class="lg-dot" style="background:rgba(0,0,0,0.40);width:7px;height:7px"></span> additional (small)</div>
+    <div class="lg-row"><span class="lg-dot" style="border:1.5px solid rgba(0,0,0,0.4);background:transparent;width:12px;height:12px"></span> book (ring)</div>
+    <div class="lg-sep"></div>
+    <div class="lg-row"><span class="lg-line" style="border-top:2px solid rgba(0,0,0,0.30)"></span> shared author</div>
+    <div class="lg-row"><span class="lg-line" style="border-top:2px dashed rgba(0,0,0,0.40)"></span> thematic link</div>
+  </div>
+  <div id="stats-bar"></div>
+  <div id="tip"></div>
+  <div id="credit-box">
+    <div class="credit-label">about</div>
+    Based on course syllabus readings<br>
+    Metadata via <a href="https://openalex.org" target="_blank">OpenAlex</a> &amp; <a href="https://www.crossref.org" target="_blank">Crossref</a><br>
+    Inspired by <a href="https://www.litmaps.com" target="_blank">Litmaps</a>
+  </div>
+</div>
+</div>
+
+<script>
+// ========== DATA ==========
+const P = [
+// Recommended Books
+{id:"carpenter2001",label:"Carpenter 2001",title:"The Forging of Bureaucratic Autonomy",au:["Carpenter"],yr:2001,w:12,t:"req",p:3,bk:1,j:"Princeton UP",tags:["autonomy","reputation","APD"],doi:"10.1515/9780691214078",abs:"List of Illustrations ix List of Tables xi Acknowledgments xiii Abbreviations xv Introduction 1 One: Entrepreneurship, Networked Legitimacy, and Autonomy 14 Two: The Clerical State: Obstacles to Bureaucratic Autonomy in Nineteenth-Century America 37 Three: The Railway Mail, Comstockery, and the Waning of the Old Postal Regime, 1862-94 65 Four: Organizational Renewal and Policy Innovation in the National Postal System, 1890-1910 94 Five: The Triumph of the Moral Economy: Finance, Parcels, and the Labor Dilemma in the Post Office, 1908-24 144 Six: Science in the Service of Seeds: The USDA, 1862-1900 179 Seven: From Seeds to Science: The USDA as University, 1897-1917 212 Eight: Multiple Networks and the Autonomy of Bureaus: Departures in Food, Pharmaceutical, and Forestry Policy, 1897-1913 255 Nine: Brokerage and Bureaucratic Policymaking: The Cementing of Autonomy at the USDA, 1914-28 290 Ten: Structure, Reputation, and the Bureaucratic Failure of Reclamation Policy, 1902-14 326 Conclusion: The Politics of Bureaucratic Autonomy 353 Notes 369 Archival Sources 459 Index 465",oa:"https://openalex.org/W1536060341",cite:788},
+{id:"gailmardPatty2013",label:"Gailmard & Patty 2013",title:"Learning While Governing",au:["Gailmard","Patty"],yr:2013,w:5,t:"add",p:1,bk:1,j:"UChicago Press",tags:["expertise","accountability"],doi:"10.7208/chicago/9780226924427.001.0001",oa:"https://openalex.org/W4231674871",cite:109},
+{id:"huberShipan2002",label:"Huber & Shipan 2002",title:"Deliberate Discretion?",au:["Huber","Shipan"],yr:2002,w:3,t:"req",p:1,bk:1,j:"Cambridge UP",tags:["delegation","discretion","comparative"],doi:"10.1017/CBO9780511804915",abs:"The laws that legislatures adopt provide the most important and definitive opportunity elected politicians have to define public policy. But the ways politicians use laws to shape policy varies considerably across polities. In some cases, legislatures adopt detailed and specific laws in efforts to micromanage policy-making processes. In others, they adopt general and vague laws that leave the executive and bureaucrats substantial autonomy to fill in the policy details. What explains these differences across political systems, and how do they matter? The authors address this issue by developing and testing a comparative theory of how laws shape bureaucratic autonomy. Drawing on a range of evidence from advanced parliamentary democracies and the American states, they argue that particular institutional forms have a systematic and predictable effect on how politicians use laws to shape the policy making process",oa:"https://openalex.org/W4245939498",cite:877},
+{id:"lewis2008",label:"Lewis 2008",title:"The Politics of Presidential Appointments",au:["Lewis"],yr:2008,w:8,t:"add",p:2,bk:1,j:"Princeton UP",tags:["appointments","politicization","performance"],doi:"10.1515/9781400837687",abs:"In the wake of Hurricane Katrina, many questioned whether the large number of political appointees in the Federal Emergency Management Agency contributed to the agency's poor handling of the catastrophe, ultimately costing hundreds of lives and causing immeasurable pain and suffering. The Politics of Presidential Appointments examines in depth how and why presidents use political appointees and how their choices impact government performance--for better or worse. One way presidents can influence the permanent bureaucracy is by filling key posts with people who are sympathetic to their policy goals. But if the president's appointees lack competence and an agency fails in its mission--as with Katrina--the president is accused of employing his friends and allies to the detriment of the public. Through case studies and cutting-edge analysis, David Lewis takes a fascinating look at presidential appointments dating back to the 1960s to learn which jobs went to appointees, which agencies were more likely to have appointees, how the use of appointees varied by administration, and how it affected agency performance. He argues that presidents politicize even when it hurts performance--and often with support from Congress--because they need agencies to be responsive to presidential direction. He shows how agency missions and personnel--and whether they line up with the president's vision--determine which agencies presidents target with appointees, and he sheds new light on the important role patronage plays in appointment decisions.",oa:"https://openalex.org/W2345139956",cite:528},
+{id:"potter2019",label:"Potter 2019",title:"Bending the Rules",au:["Potter"],yr:2019,w:10,t:"add",p:2,bk:1,j:"UChicago Press",tags:["rulemaking","procedural-politics"],doi:"10.7208/chicago/9780226621883.001.0001",oa:"https://openalex.org/W4245481592",cite:131},
+// Week 1
+{id:"brierley2023",label:"Brierley+ 2023",title:"Bureaucratic Politics: Blind Spots and Opportunities",au:["Brierley","Lowande","Potter","Toral"],yr:2023,w:1,t:"add",p:0,j:"ARPS",tags:["review","field-overview"],doi:"10.1146/annurev-polisci-061621-084933",abs:"Bureaucracy is everywhere. Unelected bureaucrats are a key link between government and citizens, between policy and implementation. Bureaucratic politics constitutes a growing share of research in political science. But the way bureaucracy is studied varies widely, permitting theoretical and empirical blind spots as well as opportunities for innovation. Scholars of American politics tend to focus on bureaucratic policy making at the national level, while comparativists often home in on local implementation by street-level bureaucrats. Data availability and professional incentives have reinforced these subfield-specific blind spots over time. We highlight these divides in three prominent research areas: the selection and retention of bureaucratic personnel, oversight of bureaucratic activities, and opportunities for influence by actors external to the bureaucracy. Our survey reveals how scholars from the American and comparative politics traditions can learn from one another.",oa:"https://openalex.org/W4380714889",cite:32},
+{id:"gailmardPatty2012",label:"Gailmard & Patty 2012",title:"Formal Models of Bureaucracy",au:["Gailmard","Patty"],yr:2012,w:1,t:"add",p:0,j:"ARPS",tags:["review","formal-theory"],doi:"10.1146/annurev-polisci-031710-103314",abs:"In the past decade, political science has witnessed a substantial amount of research using formal models to explicate the rationale for and effects of myriad aspects of bureaucratic institutions. Whereas previous waves of formal modeling on bureaucratic structure emphasized bureaucracy as a device for making policy commitments last, more recent formal research has grappled with information asymmetries and more explicitly considered the principal-agent relationship between bureaucracies and political authorities. We review several major recent themes in this literature, particularly the effects and development of bureaucratic hierarchies, the agency dilemmas inherent when policy-making authority is delegated to bureaucrats, and the effects of institutional structure on the development and sharing of expertise and capacity in bureaucracies.",oa:"https://openalex.org/W2139011416",cite:232},
+{id:"moe2013",label:"Moe 2013",title:"Delegation, Control, and the Study of Public Bureaucracy",au:["Moe"],yr:2013,w:1,t:"add",p:0,j:"Handbook of Org. Econ.",tags:["review","delegation","control"],doi:"10.1515/1540-8884.1508",abs:"Abstract The theory of public bureaucracy has made dramatic progress over the last few decades. From the pioneering work of Downs, Tullock, and Niskanen to the more recent theories of political control and delegation, the field has put together a sophisticated analytic base for understanding how politics—and the strategies and policy goals of the legislative, executive, and judicial players who exercise political authority—determine how public bureaucracy is organized and ultimately how it performs. My aim in this paper is to review this literature and offer perspective on its content and direction. Along the way I argue that, as this literature has developed and matured, technical issues have come to dominate scholarly attention, and that the normal science now governing the theory—a standardization that testifies to its very success—has been limiting and even misleading in important respects, to the point that fundamental aspects of bureaucracy and its politics are being pushed aside. All told, the progress from the early days has been astonishing. But some rethinking is in order.",oa:"https://openalex.org/W2081130687",cite:99},
+// Week 2
+{id:"dixit2002",label:"Dixit 2002",title:"Incentives and Organizations in the Public Sector",au:["Dixit"],yr:2002,w:2,t:"req",p:1,j:"JHR",tags:["incentives","public-sector"],doi:"10.2307/3069614",abs:"The paper begins with a brief overview of the theory of incentives, with special attention to issues that are important in the public sector, in general and human capital in particular. It then reviews some case studies and empirical studies of incentives in the public sector, examining how these studies relate to the theory. Some implications for reform and design of organizations are drawn.",oa:"https://openalex.org/W1525356028",cite:1092},
+{id:"acemoglu2008",label:"Acemoglu+ 2008",title:"Political Economy of Mechanisms",au:["Acemoglu","Golosov","Tsyvinski"],yr:2008,w:2,t:"req",p:1,j:"Econometrica",tags:["mechanism-design","political-economy"],doi:"10.1111/j.1468-0262.2008.00849.x",abs:"We study the provision of dynamic incentives to self-interested politicians who control the allocation of resources in the context of the standard neoclassical growth model. Citizens discipline politicians using elections. We show that the need to provide incentives to the politician in power creates political economy distortions in the structure of production, which resemble aggregate tax distortions. We provide conditions under which the political economy distortions persist or disappear in the long run. If the politicians are as patient as the citizens, the best subgame perfect equilibrium leads to an asymptotic allocation where the aggregate distortions arising from political economy disappear. In contrast, when politicians are less patient than the citizens, political economy distortions remain asymptotically and lead to positive aggregate labor and capital taxes.",oa:"https://openalex.org/W1522361502",cite:164},
+{id:"tirole1994",label:"Tirole 1994",title:"The Internal Organization of Government",au:["Tirole"],yr:1994,w:2,t:"req",p:1,j:"Oxford Econ. Papers",tags:["collusion","corruption","organization"],doi:"10.1093/oxfordjournals.oep.a042114",abs:"Journal Article THE INTERNAL ORGANIZATION OF GOVERNMENT Get access JEAN TIROLE JEAN TIROLE IDEI, Université des Sciences Sociales de Toulouse, Place Anatole FranceF-31042 Toulouse cedex, France; MIT; and CERAS Search for other works by this author on: Oxford Academic Google Scholar Oxford Economic Papers, Volume 46, Issue 1, January 1994, Pages 1–29, https://doi.org/10.1093/oxfordjournals.oep.a042114 Published: 01 January 1994",oa:"https://openalex.org/W2102143336",cite:685},
+{id:"holmstromMilgrom1991",label:"Holmstrom & Milgrom 1991",title:"Multitask Principal-Agent Analyses",au:["Holmstrom","Milgrom"],yr:1991,w:4,t:"req",p:1,j:"JLEO",tags:["moral-hazard","multitask","incentives"],doi:"10.1093/jleo/7.special_issue.24",abs:"Journal Article Multitask Principal–Agent Analyses: Incentive Contracts, Asset Ownership, and Job Design Get access Bengt Holmstrom, Bengt Holmstrom Yale University Search for other works by this author on: Oxford Academic Google Scholar Paul Milgrom Paul Milgrom Stanford University Search for other works by this author on: Oxford Academic Google Scholar The Journal of Law, Economics, and Organization, Volume 7, Issue special_issue, January 1991, Pages 24–52, https://doi.org/10.1093/jleo/7.special_issue.24 Published: 01 January 1991",oa:"https://openalex.org/W2149902237",cite:6027},
+{id:"aghionTirole1997",label:"Aghion & Tirole 1997",title:"Formal and Real Authority in Organizations",au:["Aghion","Tirole"],yr:1997,w:2,t:"add",p:1,j:"JPE",tags:["authority","delegation","organization"],doi:"10.1086/262063",abs:"This paper develops a theory of the allocation of formal and real authority within organizations. Real authority is determined by the structure of information, which in turn depends on the allocation of formal authority. An increase in an agent's real authority promotes initiative but results in a loss of control for the principal. The paper analyzes the allocation of formal authority as well as some determinants of the subordinates' real authority: overload, lenient rules, urgency of decision, reputation, performance measurement, and multiplicity of superiors. Finally, the amount of communication in an organization is shown to depend on the allocation of formal authority. Copyright 1997 by the University of Chicago.",oa:"https://openalex.org/W2165717995",cite:3047},
+{id:"niskanen1971",label:"Niskanen 1971",title:"Bureaucracy and Representative Government",au:["Niskanen"],yr:1971,w:2,t:"add",p:1,j:"Aldine-Atherton",tags:["budget-maximizing","public-choice"],doi:"",abs:"This is the first book to develop a formal theory of supply by bureaus. Niskanen develops an original and comprehensive theory of the behavior of bureaus with the institutions of representative government. He challenges the traditional view that monopoly bureaus are the best way to organize the public sector, and he suggests ways to use competitive bureaus and private firms to perform operations such as delivering mail, fighting wars, or running schools more efficiently than the present government agencies. The theory concludes that most bureaus are too large, grow too fast, use too much capital, and exploit their sponsor. His theory explains the relation of the output and budget of a bureau to demand and cost decisions. It compares bureaus with other forms of organization facing like conditions and delineates the production and investment behavior of a bureau, the behavior of nonprofit firms with no sponsor, the behavior of mixed bureaus with financing from a sponsor and from the sale of services, the effects of competition between a bureau and a competitive industry. The book also develops a simple theory of the market for public services financed through a representative government; the final section suggests a set of changes to improve the performance of our bureaucratic and political institutions, based both on theory and Niskanen's professional experience. It is essential reading for professionals and students in the social sciences and could prove instrumental in reforming some of our government institutions.",oa:"https://openalex.org/W2043285762",cite:5157},
+// Week 3
+{id:"bendorMeirowitz2004",label:"Bendor & Meirowitz 2004",title:"Spatial Models of Delegation",au:["Bendor","Meirowitz"],yr:2004,w:3,t:"req",p:1,j:"APSR",tags:["spatial-models","delegation","formal-theory"],doi:"10.1017/s0003055404001157",abs:"Although a large literature on delegation exists, few models have pushed beyond a core set of canonical assumptions. This approach may be justified on grounds of tractability, but the failure to grasp the significance of different assumptions and push beyond specific models has limited our understanding of the incentives for delegation. Consequently, the justifications for delegation that have received recent scrutiny and testing differ from some of the more plausible justifications offered by informal studies of delegation. We show that surprisingly few results in the literature hinge on risk aversion, and surprisingly many turn on the ignored, though equally canonical, technological assumption that uncertainty is fixed (relative to policies). Relaxing the key assumptions about dimensionality and functional forms provides a clearer intuition about delegation—one that is closer to classical treatments. The theory allows us to relate different institutional features (commitment, specialization costs, monitoring, multiple principals) to delegation's observable properties.",oa:"https://openalex.org/W2029956352",cite:300},
+{id:"epsteinOHalloran1994",label:"Epstein & O'Halloran 1994",title:"Administrative Procedures, Information, and Agency Discretion",au:["Epstein","O'Halloran"],yr:1994,w:3,t:"req",p:1,j:"AJPS",tags:["procedures","information","discretion"],doi:"10.2307/2111603",abs:"This paper investigates the design of administrative procedures when policy consequences are uncertain. In general, when deciding how much discretion to delegate, legislators must trade off informational gains from agency expertise and distributive losses from bureaucratic drift. We show that when Congress has both ex post agenda control and access to information, it will delegate a large degree of authority to all agencies, regardless of differences in policy preferences. This discretionary floor rises as future events become more uncertain. We further show that the possibility of coalitional drift, or changing preferences of the median legislator, may lead either to hard-wired agencies with little authority or soft-wired agencies with large powers to set policy.",oa:"https://openalex.org/W2328190647",cite:459},
+{id:"epsteinOHalloran1999",label:"Epstein & O'Halloran 1999",title:"Delegating Powers",au:["Epstein","O'Halloran"],yr:1999,w:3,t:"add",p:1,bk:1,j:"Cambridge UP",tags:["transaction-costs","delegation"],doi:"10.1017/cbo9780511609312",abs:"David Epstein and Sharyn O'Halloran produce the first unified theory of policy making between the legislative and executive branches. Examining major US policy initiatives from 1947 to 1992, the authors describe the conditions under which the legislature narrowly constrains executive discretion, and when it delegates authority to the bureaucracy. In doing so, the authors synthesize diverse and competitive literatures, from transaction cost and principal-agent theory in economics, to information models developed in both economics and political science, to substantive and theoretical work on legislative organization and on bureaucratic discretion. Professors Epstein and O'Halloran produce their own deductive specification of the conditions for making or delegating policy, gather a rich, original data set on delegation and discretion in the postwar era to test the propositions derived from their model, and devise appropriate statistical tests to assess the validity of their propositions. With implications for the study of constitutional design, political delegation, legislative organization, administrative law, and the role of the executive in policy making, this book redefines the study of legislative-executive relations under separate powers.",oa:"https://openalex.org/W4232663284",cite:1039},
+{id:"huberShipanPfahler2001",label:"Huber+ 2001",title:"Legislatures and Statutory Control of the Bureaucracy",au:["Huber","Shipan","Pfahler"],yr:2001,w:3,t:"add",p:1,j:"AJPS",tags:["statutory-control","delegation"],doi:"10.2307/2669344",abs:"Existing theories of legislative delegation to bureaucracies typically focus on a single legislature, often the U.S. Congress. We argue that this parochial focus has important limitations. If one contends that politicians respond rationally to their political environment when adopting strategies for controlling bureaucrats, then theories of control should be able to explain how differences in the political environment-and in particular in the democratic institutional arrangements that shape this environment-influence strategies for controlling bureaucrats. We offer such a theory about the conditions under which legislatures should rely on statutory control (i.e., detailed legislation) in order to limit the discretion of agencies. The theory focuses on the interactions of four factors: conflict between legislators and bureaucrats, the bargaining costs associated with choosing the institutions for controlling bureaucrats, the professional capacity of legislators to create institutions for control, and the impact of political institutions on the relative costs and benefits of statutory and nonstatutory strategies of control. We test our argument using legislation from 1995 and 1996 that affects Medicaid programs. The results show that legislatures are more likely to make use of statutory controls when control of government is divided between the two parties, the two chambers of the legislature are unified in their opposition to the executive, the legislature is more professionalized, and the legislature does not have easily available options for nonstatutory control. ureaucratic involvement in policymaking is a pervasive condition of modern political life. Bureaucracies implement policies that legislatures have enacted, and they create policies where legislatures have avoided doing so. They can act to regulate industries, to distribute benefits and costs, and to redistribute wealth. They tackle policy areas as disparate as telecommunications, the environment, transportation, and public health. Given the pervasiveness of bureaucratic activity, it is not surprising that political scientists long have sought to understand the relationship between legislatures and agencies. Understanding this relationship is essential to democratic theory, as it focuses attention on the legitimacy of the role played by unelected policymakers in a representative democracy. Furthermore, it sheds light on the actions, abilities, and motivations of legislators. Thus, scholars have attempted to ascertain whether, to what extent, and under what conditions legislators influence the actions of agencies. Much of the focus of this research has been on the U.S. Congress, and much of the debate has centered on the question of whether in fact Congress controls the bureaucracy. This is a difficult question to answer, as it requires fairly precise information on legislator preferences and agency outputs. But while settling the empirical issue has been difficult, in addressing this question scholars have clarified several strategies for control, including the use of budget processes (e.g., Banks 1989; Bendor, Taylor, and Van Gaalen 1987), ongoing oversight (e.g., Aberbach 1990), and statutory control, whereby legislators use legislation to influence agency decisions.",oa:"https://openalex.org/W2328083719",cite:284},
+{id:"volden2002",label:"Volden 2002",title:"Formal Model of the Politics of Delegation",au:["Volden"],yr:2002,w:3,t:"add",p:1,j:"AJPS",tags:["delegation","separated-powers"],doi:"10.2307/3088417",oa:"https://openalex.org/W4239955751",cite:123},
+{id:"callanderKrehbiel2014",label:"Callander & Krehbiel 2014",title:"Gridlock and Delegation in a Changing World",au:["Callander","Krehbiel"],yr:2014,w:3,t:"add",p:1,j:"AJPS",tags:["gridlock","delegation","dynamic"],doi:"10.1111/ajps.12105",abs:"Fixed statutes and regulations often have variable consequences over time. If left unattended, such drift can severely erode the performance of government as an institution of representation. To better understand the mechanics of policy‐making in a changing world, we develop a positive theory that captures political drift in a dynamic separation‐of‐powers system. We show analytically that a distinctive combination of legislative supermajoritarianism and agency discretion—institutional features that, in isolation, elicit widespread criticism—can effectively ameliorate policies' susceptibility to the vicissitudes of exogenous change. The critical mechanism for governmental accommodation of drift is delegation, which increases all decision makers' well‐being by reducing fluctuations in outcomes. Although the complete smoothing of outcomes is attainable in a separation‐of‐ powers system, we show that this is typically not achieved in equilibrium. The presence of drift provides an opportunity for self‐interested legislators to extract a distributional benefit from their fellow legislators at the expense of overall policymaking efficiency.",oa:"https://openalex.org/W2243287487",cite:3},
+// Week 4
+{id:"prendergast2003",label:"Prendergast 2003",title:"The Limits of Bureaucratic Efficiency",au:["Prendergast"],yr:2003,w:4,t:"req",p:1,j:"JPE",tags:["efficiency","incentives"],doi:"10.1086/376956",abs:"Bureaucracies tend to be used when consumers cannot be trusted to choose outcomes efficiently. But a primary means of bureaucratic oversight is consumer complaints. But this can give bureaucrats an incentive to inefficiently accede to consumer demands to avoid a complaint. I show that when this incentive is important, bureaucracies (efficiently) respond by (i) ignoring legitimate consumer complaints, (ii) monitoring more in situations in which it is not needed, (iii) delaying decision making “too long,” and (iv) biasing oversight against consumers. I also show that bureaucracies are used only when consumers cannot be trusted. As a result, observed bureaucracies are always inefficient.",oa:"https://openalex.org/W2038333347",cite:140},
+{id:"prendergast2007",label:"Prendergast 2007",title:"The Motivation and Bias of Bureaucrats",au:["Prendergast"],yr:2007,w:4,t:"req",p:1,j:"AER",tags:["motivation","bias","mission"],doi:"10.1257/aer.97.1.180",abs:"Many individuals are motivated to exert effort because they care about their jobs, rather than because there are monetary consequences to their actions. The intrinsic motivation of bureaucrats is the focus of this paper, and three primary results are shown. First, bureaucrats should be biased. Second, sometimes this bias takes the form of advocating for their clients more than would their principal, while in other cases, they are more hostile to their interests. For a range of bureaucracies, those who are biased against clients lead to more efficient outcomes. Third, self-selection need not produce the desired bias. Instead, selection to bureaucracies is likely to be bifurcated, in the sense that it becomes composed of those who are most preferred by the principal, and those who are least preferred. (JEL D64, D73, D82)",oa:"https://openalex.org/W2056756788",cite:438},
+{id:"maskinTirole2004",label:"Maskin & Tirole 2004",title:"The Politician and the Judge",au:["Maskin","Tirole"],yr:2004,w:4,t:"add",p:1,j:"AER",tags:["accountability","judicial"],doi:"10.1257/0002828042002606",abs:"We build a simple model to capture the major virtues and drawbacks of making public officials accountable (i.e., subjecting them to reelection): On the one hand, accountability allows the public to screen and discipline their officials; on the other, it may induce those officials to pander to public opinion and put too little weight on minority welfare. We study when decision-making powers should be allocated to the public directly (direct democracy), to accountable officials (called “politicians”), or to nonaccountable officials (called “judges”).",oa:"https://openalex.org/W2143660551",cite:902},
+{id:"leaver2009",label:"Leaver 2009",title:"Bureaucratic Minimal Squawk Behavior",au:["Leaver"],yr:2009,w:4,t:"add",p:1,j:"AER",tags:["regulation","squawk"],doi:"10.1257/aer.99.3.572",abs:"This paper develops a model in which a desire to avoid criticism prompts otherwise public-spirited bureaucrats to behave inefficiently. Decisions are taken to keep interest groups quiet and to keep mistakes out of the public eye. The policy implications of this “minimal squawk” behavior are at odds with the view that agencies should be structured to minimize the threat of “capture.” An empirical test using data from US State Public Utility Commissions rejects the capture hypothesis and is consistent with the squawk hypothesis: longer PUC terms of office are associated with a higher incidence of rate reviews and lower household electricity bills. (JEL D73, L51, L97, L98)",oa:"https://openalex.org/W2102421539",cite:180},
+{id:"heckman2002",label:"Heckman+ 2002",title:"The Performance of Performance Standards",au:["Heckman","Heinrich","Smith"],yr:2002,w:4,t:"add",p:1,j:"JHR",tags:["performance","standards"],doi:"10.2307/3069617",abs:"The Performance of Performance Standards *This paper examines the performance of the JTPA performance system, a widely emulated model for inducing efficiency in government organizations.We present a model of how performance incentives may distort bureaucratic decisions.We define cream skimming within the model.Two major empirical findings are (a) that the short run measures used to monitor performance are weakly, and sometimes perversely, related to long run impacts and (b) that the efficiency gains or losses from cream skimming are small.We find evidence that centers respond to performance standards.",oa:"https://openalex.org/W3125969520",cite:184},
+{id:"prendergast2016",label:"Prendergast 2016",title:"Bureaucratic Responses",au:["Prendergast"],yr:2016,w:4,t:"add",p:1,j:"JLE",tags:["responses","incentives"],doi:"10.1086/683780",abs:"This paper’s interest is in understanding how bureaucracies should respond to their clients. I claim that because many services are not priced, the responses of bureaucracies to their clients will often be the opposite of the reactions of “normal” firms. Specifically, bureaucracies ignore the most credible complaints from clients, provide the poorest service to clients who value the service most, and require the most red tape for clients who already know their needs.",oa:"https://openalex.org/W4235614857",cite:3},
+// Week 5
+{id:"gailmardPatty2007",label:"Gailmard & Patty 2007",title:"Slackers and Zealots",au:["Gailmard","Patty"],yr:2007,w:5,t:"req",p:1,j:"AJPS",tags:["civil-service","expertise","discretion"],doi:"10.1111/j.1540-5907.2007.00286.x",abs:"We investigate how aspects of “civil service” systems of personnel management interact with bureaucratic discretion to create expert bureaucracies populated by policy‐motivated agents. We construct a dynamic model in which bureaucrats may invest in (relationship‐specific) policy expertise and may or may not be interested in policy choices per se. The legislature makes sequentially rational grants of discretion, which serve as incentives for expertise investment and continued service only for policy‐motivated bureaucrats. Bureaucratic policy preferences and the legislature's agency problem vis‐à‐vis bureaucracies develop endogenously in the model. Bureaucratic expertise can be supported in equilibrium only at a cost of its politicization; “neutral competence” is inconsistent with strategic incentives of bureaucrats. We identify several conditions that support the development of an expert bureaucracy in equilibrium, including security of job tenure and control over policy issues for policy‐motivated bureaucrats.",oa:"https://openalex.org/W1971247574",cite:504},
+{id:"callander2008",label:"Callander 2008",title:"A Theory of Policy Expertise",au:["Callander"],yr:2008,w:5,t:"req",p:1,j:"QJPS",tags:["expertise","policy"],doi:"10.1561/100.00007024",abs:"The role of expertise in policy making has been a focus of political science research in recent decades. Underlying formal models in this area is a conception of expertise that is very simple: expertise is a single piece of information. Combined with a condition on the set of possible processes, this simplicity implies that expertise is invertible. Thus, a single recommendation by an expert can render a layperson an expert. In this paper, I offer a broader representation of expertise and policy making that relaxes these features. To demonstrate that this generality matters to political behavior, I develop a simple model of delegation and show that imperfect invertibility of expertise provides a resolution of the commitment problem of legislative-bureaucratic policy making. The theory predicts that only issues of sufficient complexity can be delegated, consistent with anecdotal evidence.",oa:"https://openalex.org/W2045946907",cite:102},
+{id:"clintonLewis2008",label:"Clinton & Lewis 2008",title:"Expert Opinion, Agency Characteristics, and Agency Preferences",au:["Clinton","Lewis"],yr:2008,w:5,t:"req",p:1,j:"Pol. Analysis",tags:["ideology","agencies","expert-survey"],doi:"10.1093/pan/mpm009",abs:"The study of bureaucracies and their relationship to political actors is central to understanding the policy process in the United States. Studying this aspect of American politics is difficult because theories of agency behavior, effectiveness, and control often require measures of administrative agencies' policy preferences, and appropriate measures are hard to find for a broad spectrum of agencies. We propose a method for measuring agency preferences based upon an expert survey of agency preferences for 82 executive agencies in existence between 1988 and 2005. We use a multirater item response model to provide a principled structure for combining subjective ratings based on scholarly and journalistic expertise with objective data on agency characteristics. We compare the resulting agency preference estimates and standard errors to existing alternative measures, discussing both the advantages and limitations of the method.",oa:"https://openalex.org/W1977082364",cite:294},
+{id:"nixon2004",label:"Nixon 2004",title:"Separation of Powers and Appointee Ideology",au:["Nixon"],yr:2004,w:5,t:"add",p:1,j:"JLEO",tags:["appointments","ideology"],doi:"10.1093/jleo/ewh041",abs:"The traditional view of appointments to executive agencies is that the president has virtual carte blanche in the selection of personnel for his 'team.' Yet many formal models of appointment suggest that presidents must accommodate the policy preferences of senators when making nominations. Several empirical studies have confirmed that legislative preferences are a significant determinant of the ideology of appointees, but these studies have focused on appointments to the federal judiciary; the research has not addressed appointments to executive agencies. Appointments to executive agencies from 1936 to 1996 are examined, by employing a special sample of appointees to those positions—those who have served in Congress at some point in their careers. For these 'bridging' individuals, it is possible to analyze strictly comparable measures of ideology for the appointees, their nominating presidents, and the senators who voted to confirm them. A linear regression analysis provides significant support for the hypothesis that appointee ideology is affected by variation in the ideological tilt in Congress.",oa:"https://openalex.org/W2079208647",cite:75},
+{id:"gailmardPatty2019",label:"Gailmard & Patty 2019",title:"Giving Advice Versus Making Decisions",au:["Gailmard","Patty"],yr:2019,w:5,t:"add",p:1,j:"PSRM",tags:["advice","delegation"],doi:"10.1017/psrm.2018.5",abs:"We generalize standard delegation models to consider policymaking when both information and authority are dispersed among multiple actors. In our theory, the principal may delegate partial authority to a privately informed agent while also reserving some authority for the principal’s use after observing the agent’s decision. Counterintuitively, the equilibrium amount of authority delegated to the agent is increasing in the preference divergence between the principal and agent. We also show that the amount of authority delegated depends upon whether the agent can observe the principal’s own private information (a condition we refer to as “top-down transparency”): this form of transparency increases the authority that must be delegated to the agent to obtain truthful policymaking. Accordingly, such transparency can result in less-informed policymaking. Nonetheless, the principal will sometimes but not always voluntarily choose such transparency.",oa:"https://openalex.org/W2801994330",cite:9},
+{id:"bils2020",label:"Bils 2020",title:"Policymaking with Multiple Agencies",au:["Bils"],yr:2020,w:5,t:"add",p:1,j:"AJPS",tags:["multiple-agencies","delegation"],doi:"10.1111/ajps.12474",abs:"Abstract Authority over related policy issues is often dispersed among multiple government agencies. In this article, I study when Congress should delegate to multiple agencies, and how shared regulatory space complicates agency decision making. To do so, I develop a formal model of decentralized policymaking with two agencies that incorporates information acquisition and information sharing, delineating situations where legislators should and should not prefer multiple agencies. Greater divergence between the agencies' ideal points distorts information sharing and policy choices, but it may increase the amount of information acquisition. Congress achieves better policy outcomes by delegating authority to both agencies if the agencies have strong policy disagreements. If the agencies have similar policy preferences, however, then Congress may want to consolidate authority within one agency because this approach mitigates free‐riding and takes advantage of returns to scale.",oa:"https://openalex.org/W2978286571",cite:9},
+{id:"richardson2019",label:"Richardson 2019",title:"Politicization and Expertise: Exit, Effort, and Investment",au:["Richardson"],yr:2019,w:5,t:"add",p:1,j:"JOP",tags:["politicization","expertise","exit"],doi:"10.1086/703072",abs:"Federal civil servants need policy expertise to formulate and implement public policy. Presidents and congresses do not confer such expertise when they delegate responsibility for policy making. Existing research suggests that elected officials’ efforts to gain control of federal agencies can reduce agency expertise by inducing civil servants to exit the agency and reducing incentives for civil servants to exert effort, including acquiring policy expertise. I use data from an original survey of federal executives to examine whether politicization reduces agency expertise. I find that civil servants whose policy preferences diverge from those of political appointees are more likely to perceive that their agency is politicized and that civil servants who perceive their agency is politicized are more likely to exit the agency and less likely to engage in behaviors that build policy expertise. In total, these findings provide systematic, microlevel evidence demonstrating how politicization can reduce agency policy expertise.",oa:"https://openalex.org/W2936224442",cite:65},
+// Week 6
+{id:"ting2003",label:"Ting 2003",title:"A Strategic Theory of Bureaucratic Redundancy",au:["Ting"],yr:2003,w:6,t:"req",p:1,j:"AJPS",tags:["redundancy","competition"],doi:"10.1111/1540-5907.00019",abs:"Do redundant bureaucratic arrangements represent wasteful duplication or a hedge against political uncertainty? Previous attempts at addressing this question have treated agency actions as exogenous, thus avoiding strategic issues such as collective action problems or competition. I develop a game‐theoretic model of bureaucratic policy making in which a political principal chooses the number of agents to handle a given task. Importantly, agents have policy preferences that may be opposed to the principal's, and furthermore may choose their policy or effort levels. Among the results are that redundancy can help a principal achieve her policy goals when her preferences are not aligned with the agents'. But redundancy is less helpful if even a single agent has preferences relatively close to the principal's. In this environment collective action problems may cause multiple agents to be less effective than a single agent. Redundancy can also be unnecessary to the principal if the agent's jurisdiction can be terminated.",oa:"https://openalex.org/W2160471812",cite:129},
+{id:"ting2002",label:"Ting 2002",title:"A Theory of Jurisdictional Assignments",au:["Ting"],yr:2002,w:6,t:"req",p:1,j:"AJPS",tags:["jurisdiction","organization"],doi:"10.2307/3088382",abs:"What determines the allocation of tasks among government agencies? This paper develops a formal model of task allocation that argues that jurisdictions are strategically designed to achieve legislative goals. In the model, agencies choose unobservable policies, and political outcomes are a noisy indicator of these choices. The legislature therefore faces a compliance issue when the agencies’ policy preferences are different from its own. The legislature exerts control by defining agency jurisdictions, setting ex ante budgets and choosing ex post contractual inducements. The principal result is that tasks will be consolidated under a single roof when that agency prefers lower levels of policy than the legislature. In other cases, separating tasks prevents resources from being allocated in a manner undesirable for the legislature.",oa:"https://openalex.org/W2138843263",cite:63},
+{id:"holmstrom1982",label:"Holmstrom 1982",title:"Moral Hazard in Teams",au:["Holmstrom"],yr:1982,w:6,t:"req",p:1,j:"Bell J. Econ.",tags:["moral-hazard","teams"],doi:"10.2307/3003457",abs:"This article studies moral hazard with many agents. The focus is on two features that are novel in a multiagent setting: free riding and competition. The free-rider problem implies a new role for the principal: administering incentive schemes that do not balance the budget. This new role is essential for controlling incentives and suggests that firms in which ownership and labor are partly separated will have an advantage over partnerships in which output is distributed among agents. A new characterization of informative (hence valuable) monitoring is derived and applied to analyze the value of relative performance evaluation. It is shown that competition among agents (due to relative evaluations) has merit solely as a device to extract information optimally. Competition per se is worthless. The role of aggregate measures in relative performance evaluation is also explored, and the implications for investment rules are discussed.",oa:"https://openalex.org/W1542323922",cite:16},
+{id:"heimann1993",label:"Heimann 1993",title:"Understanding the Challenger Disaster",au:["Heimann"],yr:1993,w:6,t:"add",p:1,j:"APSR",tags:["redundancy","NASA"],doi:"10.2307/2939051",abs:"The destruction of the space shuttle Challenger was a tremendous blow to American space policy. To what extent was this loss the result of organizational factors at the National Aeronautics and Space Administration? To discuss this question analytically, we need a theory of organizational reliability and agency behavior. Martin Landau's work on redundancy and administrative performance provides a good starting point for such an effort. Expanding on Landau's work, I formulate a more comprehensive theory of organizational reliability that incorporates both type I and type II errors. These principles are then applied in a study of NASA and its administrative behavior before and after the Challenger accident.",oa:"https://openalex.org/W2171030447",cite:75},
+{id:"selin2015",label:"Selin 2015",title:"What Makes an Agency Independent?",au:["Selin"],yr:2015,w:6,t:"add",p:1,j:"AJPS",tags:["independence","agency-design"],doi:"10.1111/ajps.12161",abs:"The responsiveness of government agencies to elected officials is a central question in democratic governance. A key source of variation in responsiveness is agency structure. Yet scholars often view agencies as falling into broad structural categories (e.g., cabinet departments or independent commissions) or fixate on some features of design (e.g., “for cause” protections). I develop new estimates of structural independence based on new data on 50 different structural features of 321 federal agencies in the federal executive establishment. Using a Bayesian latent variable model, I estimate independence on two dimensions: limits on the appointment of key agency decision makers and limits on political review of agency policy. I illustrate the value of this new measure by using it to examine how structure affects political influence and how agency independence can vary over time.",oa:"https://openalex.org/W2164366152",cite:137},
+{id:"berryGersen2017",label:"Berry & Gersen 2017",title:"Agency Design and Political Control",au:["Berry","Gersen"],yr:2017,w:6,t:"add",p:1,j:"Yale Law J.",tags:["agency-design","political-control"],doi:"",oa:"https://openalex.org/W2804034265",cite:27},
+// Week 7
+{id:"mccubbinsSchwartz1984",label:"McCubbins & Schwartz 1984",title:"Police Patrols versus Fire Alarms",au:["McCubbins","Schwartz"],yr:1984,w:7,t:"req",p:2,j:"AJPS",tags:["oversight","fire-alarms","police-patrols"],doi:"10.2307/2110792",abs:"Scholars have often remarked that Congress neglects its oversight responsibility. We argue that Congress does no such thing: what appears to be a neglect of oversight really is the rational preference for one form of oversight-which we call fire-alarm oversight-over another form-police-patrol oversight. Our analysis supports a somewhat neglected way of looking at the strategies by which legislators seek to achieve their goals.",oa:"https://openalex.org/W2333983184",cite:2928},
+{id:"mcnollgast1987",label:"McNollgast 1987",title:"Administrative Procedures as Instruments of Political Control",au:["McCubbins","Noll","Weingast"],yr:1987,w:7,t:"req",p:2,j:"JLEO",tags:["procedures","control","APA"],doi:"10.1093/oxfordjournals.jleo.a036930",abs:"Journal Article Administrative Procedures as Instruments of Political Control Get access MATHEW D. MCCUBBINS, MATHEW D. MCCUBBINS University of CaliforniaSan Diego Search for other works by this author on: Oxford Academic Google Scholar ROGER G. NOLL, ROGER G. NOLL Stanford University Search for other works by this author on: Oxford Academic Google Scholar BARRY R. WEINGAST BARRY R. WEINGAST Stanford University Search for other works by this author on: Oxford Academic Google Scholar The Journal of Law, Economics, and Organization, Volume 3, Issue 2, FALL 1987, Pages 243–277, https://doi.org/10.1093/oxfordjournals.jleo.a036930 Published: 01 October 1987",oa:"https://openalex.org/W1919343167",cite:2276},
+{id:"lowandePoter2021",label:"Lowande & Potter 2021",title:"Congressional Oversight Revisited",au:["Lowande","Potter"],yr:2021,w:7,t:"req",p:2,j:"JOP",tags:["oversight","rulemaking","Congress"],doi:"10.1086/709436",abs:"Scholars have long acknowledged that legislators strategically employ procedure to advance policy preferences. But evidence for this view is confined to the lawmaking process, omitting an essential function of elected representatives: oversight of executive policy making. We argue that ex post procedural oversight is also driven by policy disagreement. We demonstrate this by analyzing congressional participation in US Environmental Protection Agency rulemaking from 2007 to 2017. Using the content of public comments and commenters’ political contributions, our study is the first to locate the spatial position of rulemaking proposals. We find that the more ideologically distant the agency proposal, the more likely a request for documents, additional hearings, or more time for public participation. Moreover, these requests are likely to parallel substantive criticisms and be concentrated among members with experienced staff. These findings imply that—beyond setting the baseline rules of bureaucratic policy making—well-resourced elected officials leverage procedure during policy implementation.",oa:"https://openalex.org/W3020140034",cite:48},
+{id:"calvert1989",label:"Calvert+ 1989",title:"A Theory of Political Control and Agency Discretion",au:["Calvert","McCubbins","Weingast"],yr:1989,w:7,t:"add",p:2,j:"AJPS",tags:["control","discretion"],doi:"10.2307/2111064",abs:"A major issue in the study of American politics is the extent to which electoral discipline also constrains bureaucrats. In practice, executive agencies operate with considerable independence from elected officials. However,the entire process of policy execution is a game among legislators.the chief executive. and bureaucratic agents. It includes the initial delegation of authority, the choice of policy alternatives,and opportunities for oversight and control. A simple model of this process demonstrates an important distinction between bureaucratic authority and bureaucratic discretion. Indeed.in its simplest form, the model predicts a world in which bureaucrats are the sole active participants in policymaking, but in which the choice of policy is traceable entirely to the preferences of elected officials. More realistically. the model leads to a precise definition of agency discretion. These conclusions have practical applications for both students and reformers of policymaking.",oa:"https://openalex.org/W2002568834",cite:76},
+{id:"weingastMoran1983",label:"Weingast & Moran 1983",title:"Bureaucratic Discretion or Congressional Control?",au:["Weingast","Moran"],yr:1983,w:7,t:"add",p:2,j:"JPE",tags:["FTC","discretion"],doi:"10.1086/261181",abs:"This paper extends Stigler and Peltzman's approach to regulation by incorporating a legislature. The model yields comparative statics results and hence testable implications. The paper then tests between two opposing approaches about regulatory agency behavior. The first assumes agencies operate independently of the legislature and hence exercise discretion; the second assumes that Congress controls agency decisions. The recent behavior of the Federal Trade Commission provides the empirical setting. Substantial evidence is found for the specific predictions of the model, including the hypothesis of systematic congressional influence over FTC decisions.",oa:"https://openalex.org/W1978648732",cite:1458},
+{id:"epsteinOHalloran1996",label:"Epstein & O'Halloran 1996",title:"Divided Government and Administrative Procedures",au:["Epstein","O'Halloran"],yr:1996,w:7,t:"add",p:2,j:"JOP",tags:["divided-government","procedures"],doi:"10.2307/2960231",abs:"Despite the abundance of recent studies on divided government, no clear consensus has emerged as to whether divided partisan control has an appreciable impact on policy outcomes. In this article we take a new perspective on the divided government debate by emphasizing the important role that the federal bureaucracy plays in shaping policy. We present a game theoretic model of the policy-making process in which legislators design administrative procedures, the president appoints agency heads, and bureaucrats collect information and promulgate regulations. The model predicts that during times of divided control Congress delegates less discretionary authority to the executive branch, and that these changes in authority have significant policy consequences. We then test the implications of our model with data drawn from U.S. trade policy between 1890 and 1990. Our central finding is that divided government influences policy indirectly, through the procedures that Congress designs to control the bureaucracy.",oa:"https://openalex.org/W2123858578",cite:212},
+{id:"clintonLewisSelin2014",label:"Clinton+ 2014",title:"Influencing the Bureaucracy: The Irony of Congressional Oversight",au:["Clinton","Lewis","Selin"],yr:2014,w:7,t:"add",p:2,j:"AJPS",tags:["oversight","irony"],doi:"10.1111/ajps.12066",abs:"Does the president or Congress have more influence over policymaking by the bureaucracy? Despite a wealth of theoretical guidance, progress on this important question has proven elusive due to competing theoretical predictions and severe difficulties in measuring agency influence and oversight. We use a survey of federal executives to assess political influence, congressional oversight, and the policy preferences of agencies, committees, and the president on a comparable scale. Analyzing variation in political influence across and within agencies reveals that Congress is less influential relative to the White House when more committees are involved. While increasing the number of involved committees may maximize the electoral benefits for members, it may also undercut the ability of Congress as an institution to collectively respond to the actions of the presidency or the bureaucracy.",oa:"https://openalex.org/W2140694296",cite:80},
+{id:"feinstein2018",label:"Feinstein 2018",title:"Congress in the Administrative State",au:["Feinstein"],yr:2018,w:7,t:"add",p:2,j:"Wash. U. Law Rev.",tags:["Congress","administrative-state"],doi:"",abs:"In an era of increased concern over presidential power, congressional oversight of the executive branch constitutes a substantial—but underappreciated—means of influencing agency decision-making. Scholars too often have overlooked it, and Congress is sub-optimally designed for its provision, but oversight has a significant impact on agency behavior.nThis Article provides a corrective. It presents the legal mechanisms that give oversight hearings their force and situates these hearings in their historical and legal context. In light of this framework and historical practice, the Article posits that ex post oversight hearings facilitate political control over the administrative state. Because oversight gets its bite from an implicit threat of legislative sanctions should an agency not change its behavior following hearings, however, committees’ decisions whether to pursue oversight hinge on the credibility of this threat.nTo test this theory, the Article introduces an original dataset of over 14,000 agency “infractions,” i.e., agency actions that are potential subjects of hearings. Analysis of these data reveals, first, that oversight is most likely to occur when the particular preference alignment of Congress, the relevant committee, and the agency make the threat of new legislation credible. A second empirical analysis finds that, when oversight hearings do occur, they can get results; infractions that are subject to hearings are 18.5% less likely to recur compared to otherwise similar infractions that are not subject to hearings.nThese findings call into question the received wisdom regarding Congress’s role in governance. Whereas scholars focused on the political branches’ formal powers see Congress as a branch in decline, a more nuanced picture emerges when one also considers “soft powers,” like oversight. These findings offer a blueprint for greater congressional involvement in administration: to increase Congress’s role in governance, committee membership rosters should be representative of the larger legislature and committees with overlapping jurisdictions should be established. By redesigning its internal structure, Congress can promote more frequent oversight and, because oversight can be consequential, thereby strengthens Congress as a check on presidential administration.",oa:"https://openalex.org/W2610851291",cite:3},
+{id:"pattyTurner2021",label:"Patty & Turner 2021",title:"Ex Post Review and Expert Policymaking",au:["Patty","Turner"],yr:2021,w:7,t:"add",p:2,j:"JOP",tags:["review","expertise"],doi:"10.31235/osf.io/ugsqc",abs:"Ex post review is a common feature of policymaking institutions. We consider an environment in which an expert agent makes a policy recommendation, which can then be accepted or rejected by an overseer whose policy goals differ from those of the agent. The theory suggests that both behavior and optimal institutional design are sensitive to several factors, including actors' preference alignment, the importance of the policy decision, and the uncertainty about the correct policy choice. We characterize the types of situations in which ex post review creates incentives for the agent to make pathological policy choices. In these situations, ex post review can reduce accountability of the agent to overseer wishes and ultimately provide incentives to set aside review entirely. The theory also offers testable predictions about policy recommendations and the overseer's acceptance or rejection of these recommendations.",oa:"https://openalex.org/W4248109146",cite:7},
+{id:"banHill2025",label:"Ban & Hill 2025",title:"Efficacy of Congressional Oversight",au:["Ban","Hill"],yr:2025,w:7,t:"add",p:2,j:"APSR",tags:["oversight","efficacy"],doi:"10.1017/s0003055424001242",abs:"Oversight, scholars argue, allows Congress to control the executive agents it empowers to implement law. Yet the tools of oversight are rather limited and debate continues as to how much influence oversight provides. How well can members of Congress motivate bureaucratic performance? To measure the efficacy of oversight, we create a new dataset matching oversight efforts to a bureaucratic deficiency Congress has sought to reduce since the early 2000s: improperly made payments to contractors and clients. We estimate the effect of congressional hearings, one of the most important tools of congressional oversight, as well as correspondence, appropriation committee reports, statutes, and executive action. We find that hearings lead to subsequent declines in improper payments. The magnitude of the effect, however, is small relative to the scope of the problem, suggesting strong limits on the efficacy of oversight. Our findings imply that America’s elected officials struggle to effectively manage implementation of policy.",oa:"https://openalex.org/W4406919538"},
+// Week 8
+{id:"moe1985",label:"Moe 1985",title:"Control and Feedback: The Case of the NLRB",au:["Moe"],yr:1985,w:8,t:"req",p:2,j:"APSR",tags:["NLRB","regulation","principal-agent"],doi:"10.2307/1956250",abs:"This article presents an empirical analysis of the National Labor Relations Board, focusing on the balance the agency strikes between the interests of business and labor. It is oriented by a theoretical framework that, relative to popular models, takes a broader view of the causal structure of regulatory performance—one that simultaneously allows for presidents, congressional committees, the courts, agency staff, constituents, and economic conditions. The empirical results are instructive. All of these factors prove to have significant impacts on NLRB decisions. In addition, the core regulatory actors —Board members, staff, and constituents—are shown to engage in mutually adaptive adjustment: each is responsive to the decisions of each of the others, and their reciprocal relationships impart equilibrating properties to the system as a whole. Thus, the evidence points to a varied set of important determinants and to the dynamic nature of their interconnection. To the extent that these findings are at all characteristic of other regulatory agencies, simple popular models of regulation are likely to give anemic explanations, if not highly distorted accounts, of why agencies behave as they do.",oa:"https://openalex.org/W2149101205",cite:554},
+{id:"gordon2011",label:"Gordon 2011",title:"Politicizing Agency Spending Authority",au:["Gordon"],yr:2011,w:8,t:"req",p:2,j:"APSR",tags:["spending","politicization"],doi:"10.1017/s0003055411000438",abs:"When can presidents direct bureaucrats to allocate government expenditures for electoral purposes? To address this question, I exploit a scandal concerning the General Services Administration (GSA), an agency that contracts with private vendors to provide supplies and real estate to other agencies. Shortly after Republican losses in 2006, a White House deputy gave a presentation to GSA political appointees identifying potentially vulnerable congressional districts. I find that vendors in prioritized Republican districts experienced unusually large new contract actions from the GSA's Public Buildings Service following the presentation relative to unmentioned districts, a discrepancy that disappeared once the Washington Post broke the story. Contracts supervised by the agency's Federal Acquisition Service, by contrast, were largely unresponsive to the briefing and media scrutiny. My findings suggest that the extent to which executives succeed in politicizing discretionary allocation decisions depends upon key features of the implementing agency's tasks and its informational environment.",oa:"https://openalex.org/W2067989137",cite:56},
+{id:"lowande2019",label:"Lowande 2019",title:"Politicization and Responsiveness in Executive Agencies",au:["Lowande"],yr:2019,w:8,t:"req",p:2,j:"JOP",tags:["politicization","responsiveness"],doi:"10.1086/700270",abs:"Scholarship on bureaucratic responsiveness to Congress typically focuses on delegation and formal oversight hearings. Overlooked are daily requests to executive agencies made by legislators that propose policies, communicate concerns, and request information or services. Analyzing over 24,000 of these requests made to 13 executive agencies between 2007 and 2014, I find agencies systematically prioritize the policy-related requests of majority party legislators—but that this effect can be counteracted when presidents politicize agencies through appointments. An increase in politicization produces a favorable agency bias toward presidential copartisans. This same politicization, however, has a net negative impact on agency responsiveness—agencies are less responsive to members of Congress, but even less responsive to legislators who are not presidential copartisans. Critically, this negative impact extends beyond policy-related requests to cases of constituency service. The results suggest that presidential appointees play an important, daily mediating role between Congress and the bureaucracy.",oa:"https://openalex.org/W2902795002",cite:75},
+{id:"moe1989",label:"Moe 1989",title:"The Politics of Bureaucratic Structure",au:["Moe"],yr:1989,w:8,t:"add",p:2,j:"Brookings",tags:["structure","design","interests"],doi:""},
+{id:"lewis2003",label:"Lewis 2003",title:"Presidents and the Politics of Agency Design",au:["Lewis"],yr:2003,w:8,t:"add",p:2,bk:1,j:"Stanford UP",tags:["agency-design","insulation"],doi:"10.1515/9780804766913-006",oa:"https://openalex.org/W4206935871",cite:102},
+{id:"woodWaterman1991",label:"Wood & Waterman 1991",title:"The Dynamics of Political Control of the Bureaucracy",au:["Wood","Waterman"],yr:1991,w:8,t:"add",p:2,j:"APSR",tags:["dynamics","control"],doi:"10.2307/1963851",abs:"A new paradigm of political-bureaucratic relations emerged through the 1980s holding that U.S. democratic institutions continuously shape nonelective public bureaucracies. Several empirical studies support the paradigm with evidence suggestive of political manipulation but none reveals the scope or specific mechanisms of political control. We explore the dynamics of political control of the bureaucracy explicitly to determine the scope and mechanisms. We examine output time series from seven different public bureaucracies for responsiveness to political tools applied in the late Carter and early Reagan administrations. We find responsiveness in all seven cases. The evidence also shows that political appointments—a shared power of the president and Congress—is the most important instrument of political control; changing budgets, legislation, congressional signals, and administrative reorganizations are less important. These findings confirm intuitive assertions by institutional scholars and suggest a method of “policy monitoring” that could enhance future democratic control of the bureaucracy.",oa:"https://openalex.org/W2148426523",cite:745},
+{id:"woodLewis2017",label:"Wood & Lewis 2017",title:"Agency Performance Challenges and Politicization",au:["Wood","Lewis"],yr:2017,w:8,t:"add",p:2,j:"JPART",tags:["performance","politicization"],doi:"10.1093/jopart/mux014",abs:"In this article we evaluate the relationship between political control and bureaucratic performance using information requested by researchers via Freedom of Information Act (FOIA) requests and Congress via congressional committee requests. The information requested was the same, and the timing of requests was similar. We find modest evidence of a relationship between agency politicization and a lack of responsiveness to requests for information from the public and Congress. Politicized agencies are slower to respond to requests even when controlling for agency size and workload. There is little evidence, however, that these agencies are more likely to respond poorly when they do respond. The difficulties in responding appear to be due to poor performance of the FOIA offices, either because political actors focus more on other agency activities or because of poorer management agency-wide. We conclude that efforts to make agencies responsive to elected officials may hurt management performance.",oa:"https://openalex.org/W3122033645",cite:73},
+{id:"doherty2019",label:"Doherty+ 2019",title:"Executive Control and Turnover in the SES",au:["Doherty","Lewis","Limbocker"],yr:2019,w:8,t:"add",p:2,j:"JPART",tags:["turnover","SES"],doi:"10.1093/jopart/muy069",abs:"If presidents wish to see their policy priorities implemented, they need control over key decision-making positions often occupied by career executives. This article examines whether political conflict with a new administration drives career executives from their positions. This can happen because presidents target specific individuals or because career professionals anticipate conflict and strategically exit before a new president takes office. To assess this dynamic, we use novel data that combine individual survey responses with personnel records to analyze the probability that an agency executive departs her position from March 2015 to July 2017. Given our findings that turnover is driven by both presidential marginalization and strategic exit by bureaucrats, we conclude with implications for presidential efforts to control the bureaucracy.",oa:"https://openalex.org/W2905156419",cite:59},
+{id:"limbocker2022",label:"Limbocker+ 2022",title:"The Politicization Conversation",au:["Limbocker","Richardson","Selin"],yr:2022,w:8,t:"add",p:2,j:"PSQ",tags:["politicization","measurement"],doi:"10.1111/psq.12767",abs:"Abstract Across disciplines and contexts, scholars vary in their conception of politicization. This variation reveals a need for more consistent concept definition and measurement of the extent to which politics influence administration. We engage this need by providing a typology of politicization that includes consideration of the actions of elected officials, political appointees, and merit‐based administrators. We then assess dynamic differences across the typology in the United States using personnel records spanning four decades, measures of insulation derived from statutory language, and three surveys of senior federal executives. Our analysis provides a research agenda for scholars who seek to examine the politicization of the executive branch .",oa:"https://openalex.org/W4205729628",cite:12},
+{id:"rudalevige2021",label:"Rudalevige 2021",title:"By Executive Order",au:["Rudalevige"],yr:2021,w:8,t:"add",p:2,bk:1,j:"Princeton UP",tags:["executive-orders","unilateral"],doi:"10.1515/9780691203713",abs:"How the executive branch-not the president alone-formulates executive orders, and how this process constrains the chief executive's ability to act unilaterallyThe president of the United States is commonly thought to wield extraordinary personal power through the issuance of executive orders. In fact, the vast majority of such orders are proposed by federal agencies and shaped by negotiations that span the executive branch. By Executive Order provides the first comprehensive look at how presidential directives are written-and by whom.In this eye-opening book, Andrew Rudalevige examines more than five hundred executive orders from the 1930s to today-as well as more than two hundred others negotiated but never issued-shedding vital new light on the multilateral process of drafting supposedly unilateral directives. He draws on a wealth of archival evidence from the Office of Management and Budget and presidential libraries as well as original interviews to show how the crafting of orders requires widespread consultation and compromise with a formidable bureaucracy. Rudalevige explains the key role of management in the presidential skill set, detailing how bureaucratic resistance can stall and even prevent actions the chief executive desires, and how presidents must bargain with the bureaucracy even when they seek to act unilaterally.Challenging popular conceptions about the scope of presidential power, By Executive Order reveals how the executive branch holds the power to both enact and constrain the president's will",oa:"https://openalex.org/W3145449748",cite:2},
+{id:"richardson2018",label:"Richardson+ 2018",title:"Elite Perceptions of Agency Ideology",au:["Richardson","Clinton","Lewis"],yr:2018,w:8,t:"add",p:2,j:"JOP",tags:["ideology","perception"],doi:"10.1086/694846",abs:"Perceptions of the policy leanings of government agencies are an important component of an agency’s political environment, and an agency’s political environment can greatly influence how agencies formulate and implement public policy. We use a recent survey of federal executives to measure the perceptions of the ideological leanings of twice as many agencies as previously possible. Our estimates compare reassuringly to extant measures based on both expert evaluations and aggregations of the opinions of those working within agencies. We also develop a novel measure of perceptions of workforce skill. Given the prominence of the concepts of agency ideology and skill in theories of executive branch politics, the estimates we generate provide important opportunities for understanding agencies’ political environments and their implications for policy making. The generation of these measures also illustrates an approach to measuring hard-to-observe characteristics that could usefully be adopted in other contexts.",oa:"https://openalex.org/W2771137666",cite:72},
+{id:"clinton2012",label:"Clinton+ 2012",title:"Separated Powers in the United States",au:["Clinton","Bertelli","Grose","Lewis","Nixon"],yr:2012,w:8,t:"add",p:2,j:"AJPS",tags:["separated-powers","ideology"],doi:"10.1111/j.1540-5907.2011.00559.x",abs:"Government agencies service interest groups, advocate policies, provide advice to elected officials, and create and implement public policy. Scholars have advanced theories to explain the role of agencies in American politics, but efforts to test these theories are hampered by the inability to systematically measure agency preferences. We present a method for measuring agency ideology that yields ideal point estimates of individual bureaucrats and agencies that are directly comparable with those of other political actors. These estimates produce insights into the nature of the bureaucratic state and provide traction on a host of questions about American politics. We discuss what these estimates reveal about the political environment of bureaucracy and their potential for testing theories of political institutions. We demonstrate their utility by testing key propositions from Gailmard and Patty's (2007) influential model of political control and endogenous expertise development.",oa:"https://openalex.org/W1809737314",cite:205},
+{id:"bednarLewis2024",label:"Bednar & Lewis 2024",title:"Presidential Investment in the Administrative State",au:["Bednar","Lewis"],yr:2024,w:8,t:"add",p:2,j:"APSR",tags:["investment","capacity"],doi:"10.1017/s0003055423000114",abs:"In this paper, we explain how presidents strategically invest in administrative capacity, noting that presidents have few incentives to invest effort in capacity building in most agencies. We test our account with two analyses. First, we examine the time it took for the Bush, Obama, Trump, and Biden Administrations to nominate individuals to appointed positions. We find that presidents prioritize appointments to policy over management positions and that nominations occur sooner in agencies that implement presidential priorities. Second, we examine the responses of federal executives to the 2020 Survey on the Future of Government Service to see whether perceptions of presidential investment in administrative capacity match our predictions. We find that federal executives perceive higher levels of investment when the agency is a priority of the president and when the agency shares the president’s policy views. We conclude with implications for our understanding of the modern presidency and government performance.",oa:"https://openalex.org/W4324063306",cite:9},
+// Week 9
+{id:"mccarty2004",label:"McCarty 2004",title:"The Appointments Dilemma",au:["McCarty"],yr:2004,w:9,t:"req",p:2,j:"AJPS",tags:["appointments","dilemma"],doi:"10.1111/j.0092-5853.2004.00078.x",abs:"In a separation of powers political system, effective bureaucratic control may be undermined by the fact that the power to appoint bureaucrats is controlled by a different set of principals from those that may control them through statutory or budgetary means. In particular, executives have proposal power over bureaucratic appointments and removals while legislators have proposal power over laws. In this article, I explore the consequences of this division of authority for bureaucratic outcomes. I argue that this pattern of authority often produces outcomes inferior to those generated when appointment, removal, and legislative powers are centralized as is the case in many parliamentary systems. The model reveals that restricting executive removal power can mitigate these problems. Finally, I discuss the relevance of this appointments dilemma for bargaining over bureaucratic structures with a focus on removal powers, independent commissions, and civil service rules .",oa:"https://openalex.org/W2014064882",cite:115},
+{id:"kinane2021",label:"Kinane 2021",title:"Control without Confirmation",au:["Kinane"],yr:2021,w:9,t:"req",p:2,j:"APSR",tags:["vacancies","acting"],doi:"10.1017/s000305542000115x",abs:"Scholarship on separation of powers assumes executives are constrained by legislative approval when placing agents in top policy-making positions. But presidents frequently fill vacancies in agency leadership with unconfirmed, temporary officials or leave them empty entirely. I develop a novel dataset of vacancies across 15 executive departments from 1977 to 2016 and reevaluate the conventional perspective that appointment power operates only through formal channels. I argue that presidents’ nomination strategies include leaving positions empty and making interim appointments, and this choice reflects presidents’ priorities and the character of vacant positions. The evidence indicates that interim appointees are more likely when positions have a substantial capacity to act on presidential expansion priorities and suggest that presidents can capitalize on their first-mover advantage to evade Senate confirmation. The results further suggest that separation of powers models may need to consider how deliberate inaction and sidestepping of formal powers influence political control and policy-making strategies.",oa:"https://openalex.org/W3088252184",cite:48},
+{id:"hollibaugh2018",label:"Hollibaugh & Rothenberg 2018",title:"The Who, When, and Where of Executive Nominations",au:["Hollibaugh","Rothenberg"],yr:2018,w:9,t:"req",p:2,j:"AJPS",tags:["nominations","ideology"],doi:"10.1111/ajps.12345",abs:"Abstract In recent years, scholars have expended considerable efforts to understand the executive appointment process and the forces influencing the choices made by the president and the Senate. However, some factors integral to theoretical models have not been well integrated empirically, and other relevant factors have not been incorporated much at all. Here, we focus on one determinant corresponding to the former critique—nominee ideology—and another corresponding to the latter—the independence of decision makers in the targeted agencies. We examine a series of theoretically driven hypotheses regarding the effects of both ideology and independence on who gets nominated and if and when nominees are eventually confirmed. Results show nominee ideology and decision maker independence matter a great deal and factor into presidential strategic choices and senatorial responses in ways according to expectations. Our findings have important ramifications for understanding appointments empirically and for future theoretical development.",oa:"https://openalex.org/W3123881292",cite:36},
+{id:"mccartyRazaghian1999",label:"McCarty & Razaghian 1999",title:"Advice and Consent",au:["McCarty","Razaghian"],yr:1999,w:9,t:"add",p:2,j:"AJPS",tags:["Senate","confirmation"],doi:"10.2307/2991820",abs:"The fact that presidential nominations to executive branch positions are routinely approved by the Senate obscures great variance in the length of time that the confirmation process requires. Nominees can expect to wait anywhere from a few days to several months to learn their fates. We argue that long delays are made possible by Senate procedures that allow and encourage partisan and ideological opponents of the nomination to engage in dilatory tactics. Based on more than 3500 executive branch nominations from 1885-1996, we find substantial evidence for our hypotheses. In particular, we find that confirmations take substantially longer not only in periods of divided government but also in periods in which the Senate is ideologically polarized. Finally, we discuss the likely impact of these delays on the president's appointment decisions and his ability to lead the bureaucracy.",oa:"https://openalex.org/W2318756203",cite:205},
+{id:"hollibaugh2014",label:"Hollibaugh+ 2014",title:"Presidents and Patronage",au:["Hollibaugh","Horton","Lewis"],yr:2014,w:9,t:"add",p:2,j:"AJPS",tags:["patronage","appointments"],doi:"10.1111/ajps.12083",abs:"To what extent do presidents select appointees based upon campaign experience and connections? The answer to this question has important implications for our understanding of presidential management and political leadership. This article presents a theory explaining where presidents place different types of appointees and why, focusing on differences in ideology, competence, and non‐policy patronage benefits among potential appointees. We develop a formal model and test its implications with new data on 1,307 persons appointed in the first six months of the Obama administration. The empirical results broadly support the theory, suggesting that President Obama was more likely to place appointees selected for non‐policy patronage reasons in agencies off his agenda, in agencies that shared his policy views, and where appointees are least able to affect agency performance. We conclude that patronage continues to play an important role in American politics, with important consequences for campaigns, presidential politics, and governance.",oa:"https://openalex.org/W1808137148",cite:28},
+{id:"joRothenberg2012",label:"Jo & Rothenberg 2012",title:"Rational Incompetence",au:["Jo","Rothenberg"],yr:2012,w:9,t:"add",p:2,j:"JTP",tags:["incompetence","rational"],doi:"10.1177/0951629811423232",abs:"When something goes awry in a governmental agency, a frequent claim is that appointed political heads are incompetent. If true, what explains this in a separation of powers system where the executive nominates and the legislature approves? Our analysis provides a rationale and conditions for rational incompetence. Specifically, we present a model in which a President nominates and the Senate confirms or rejects an appointee. Besides choosing a nominee’s ideology, the President can determine competence, with less competence meaning more policy outcome variance. Interestingly, without assuming that political actors are inherently risk takers, we identify conditions generating what Goemans and Fey (2009) have labeled institutionally-induced risk taking, where both the President and the relevant filibuster pivot propose and approve an incompetent administrator in equilibrium. Reasons for incompetence go beyond pure loyalty or patronage, and our model corresponds to contemporary cases of seemingly incompetent administration.",oa:"https://openalex.org/W4243049175",cite:9},
+{id:"krauseByers2022",label:"Krause & Byers 2022",title:"Confirmation Dynamics",au:["Krause","Byers"],yr:2022,w:9,t:"add",p:2,j:"JOP",tags:["confirmation","dynamics"],doi:"10.1086/716948",abs:"Confirmation delay is decomposed to better understand both when and why the Senate augments its efforts to vet presidential nominees. Distinctions among expedited, normal, and protracted confirmation processes are analyzed, as well as those between the work of Senate standing committees and chamber floor. A theory of ex ante moral hazard reduction is proposed that predicts as the confirmation process becomes increasingly protracted in response to rising potential agency costs, the Senate will be increasingly swifter to confirm tier 1 top executive leaders to US federal agency leadership positions than tier 2 subordinate leadership nominees. The statistical evidence is consistent with this theory of differential vetting between nominee tiers for both Senate party polarization and the nominee’s loyalty to the appointing president, as well as for agency decision-making independence restricted to protracted confirmation processes. Yet, such differential vetting is not empirically observed in response to interbranch policy conflict.",oa:"https://openalex.org/W3195783021",cite:3},
+{id:"bonica2015",label:"Bonica+ 2015",title:"Senate Gate-Keeping",au:["Bonica","Chen","Johnson"],yr:2015,w:9,t:"add",p:2,j:"QJPS",tags:["Senate","inferior-offices"],doi:"10.1561/100.00012085",abs:"Article II Section 2 of the U.S. Constitution gives both the Senate and the President a role in the appointment of public bureaucrats. Yet, since the drafting of that constitutional passage, changes within the Senate and Executive have created new ways for officials to influence who gets appointed to the public bureaucracy. The Senate has developed intricate vetting procedures within its committees, while the Executive Branch has created new methods — such as the Schedule C designation — to facilitate the unilateral staffing of “inferior offices.” To what extent do these institutional changes affect the ideological composition of appointments to the public bureaucracy? Our formal theory predicts that the investigative procedures of Senate committees allow chairs to block ideologically disparate nominations, thus compelling presidents to nominate moderates to Senate-confirmed post while placing extremists in Schedule C positions. Empirical analyses support these predictions: the probability of Senate confirmation declines with a nominee’s ideological distance from the relevant committee chair and Schedule C appointees exhibit greater ideological extremism than Senate-confirmed appointees. These findings reveal how modern, institutional modifications of Article II Section 2 influence both the ideological composition of appointed federal bureaucrats and the struggle for power between branches of the U.S. federal government.",oa:"https://openalex.org/W2244440120",cite:48},
+{id:"watermanOuyang2020",label:"Waterman & Ouyang 2020",title:"Rethinking Loyalty and Competence",au:["Waterman","Ouyang"],yr:2020,w:9,t:"add",p:2,j:"PAR",tags:["loyalty","competence"],doi:"10.1111/puar.13212",abs:"Abstract Studies in presidential appointments, particularly principal‐agent models, posit that presidents employ a top‐down strategy to control the bureaucracy, one that promotes loyalty over competence. However, many studies have two critical limitations: (1) treating loyalty and competence as binary constructs and (2) focusing only on presidential nomination and Senate confirmation (PAS) appointments. In this article, the authors construct a continuous measure of loyalty and competence to determine how much loyalty or competence an appointee offers a president and examine other appointment tools—Senior Executive Service (SES), Schedule C, and presidential appointments—that allow presidents to influence different levels of the bureaucracy. Findings show that presidents are more likely to reward competence with their PAS and SES appointments. In addition, few appointees score high on both loyalty and competence, explaining why presidents generally must make a trade‐off between loyalty and competence.",oa:"https://openalex.org/W3033314720",cite:17},
+{id:"richardson2025",label:"Richardson+ 2025",title:"Measuring the Impact of Appointee Vacancies",au:["Richardson","Piper","Lewis"],yr:2025,w:9,t:"add",p:2,j:"JOP",tags:["vacancies","performance"],doi:"10.1086/730735",oa:"https://openalex.org/W4393854050",cite:3},
+// Week 10
+{id:"potter2017",label:"Potter 2017",title:"Slow-Rolling, Fast-Tracking",au:["Potter"],yr:2017,w:10,t:"req",p:2,j:"JOP",tags:["rulemaking","pace"],doi:"10.1086/690614",abs:"The slow pace of administrative action is arguably a defining characteristic of modern bureaucracy. The reasons proffered for delay are numerous, often centering on procedural hurdles or bureaucrats’ ineptitude. I offer a different perspective on delay in one important bureaucratic venue: the federal rulemaking process. I argue that agencies can speed up (fast-track) or slow down (slow-roll) the rulemaking process in order to undermine political oversight by Congress, the president, and the courts. That is, when the political climate is favorable, agencies rush to lock in a rule, but when it is less favorable, they wait on the chance that it will improve. I find empirical support for this proposition using an event history analysis of more than 11,000 agency rules from 150 bureaus. The results support the interpretation that agencies strategically delay, and that delay is not simply evidence of increased bureaucratic effort.",oa:"https://openalex.org/W3123739575",cite:76},
+{id:"bolton2016",label:"Bolton+ 2016",title:"Organizational Capacity, Regulatory Review, and Political Control",au:["Bolton","Potter","Thrower"],yr:2016,w:10,t:"req",p:2,j:"JLEO",tags:["OIRA","capacity"],doi:"10.1093/jleo/ewv025",abs:"Studies of administrative politics focus primarily on political control and ignore organizational capacity. We argue that political and organizational factors, as well as the interaction between the two, are necessary for explaining executive policymaking. To test this theory, we consider the Office of Information and Regulatory Affairs (OIRA), an agency often perceived to be the president’s political instrument. Using a new dataset of over 22,000 regulations reviewed by OIRA, we demonstrate that political factors influence review lengths, but organizational factors also exhibit a significant role. We find that reviews are longer when OIRA is understaffed and over-worked. Significantly, we demonstrate that low organizational capacity inhibits the president’s ability to expedite priority rules. Overall, this study highlights the organizational limits of political control. (&lt;it&gt;JEL&lt;/it&gt; H11, H83, K23, L50, L51, M50)",oa:"https://openalex.org/W2266464614",cite:50},
+{id:"yackee2019",label:"Yackee 2019",title:"The Politics of Rulemaking",au:["Yackee"],yr:2019,w:10,t:"req",p:2,j:"ARPS",tags:["review","rulemaking"],doi:"10.1146/annurev-polisci-050817-092302",abs:"Rulemaking is a critical part of American government and governance. This article reviews the political underpinnings of modern rulemaking. Specifically, it highlights the process and impact of agency regulations, as well as the key tools used by the legislature, elected executive, and courts to oversee the rulemaking process. The article also reviews who participates in the rulemaking process, as well as who influences regulatory content. Finally, new directions in regulatory policymaking are explored, including data collection advancements, as well as the potential role for guidance documents as replacements for more traditionally issued notice and comment regulations.",oa:"https://openalex.org/W2903100560",cite:66},
+{id:"acsCameron2013",label:"Acs & Cameron 2013",title:"White House Regulatory Review: Chilling Effect?",au:["Acs","Cameron"],yr:2013,w:10,t:"add",p:2,j:"PSQ",tags:["OIRA","chilling-effect"],doi:"10.1111/psq.12042"},
+{id:"haederYackee2018",label:"Haeder & Yackee 2018",title:"Presidentially Directed Policy Change",au:["Haeder","Yackee"],yr:2018,w:10,t:"add",p:2,j:"JPART",tags:["OIRA","partisan"],doi:"10.1093/jopart/muy033",abs:"US presidents—working through the Office of Information and Regulatory Affairs (OIRA)—influence administrative agencies by directing agencies to modify their regulatory policy proposals before finalization. We identify two competing hypotheses from the literature to explain this presidential intervention. First, some scholars hypothesize that presidents are more likely to change proposals when the submitting agency's political ideology differs from the president's. Second, others argue that presidents are more likely to correct ideologically extreme agencies of either political orientation. These claims have not been adequately investigated quantitatively. We study almost 1,500 final regulations reviewed by OIRA between 2005 and 2011. In the end, neither hypothesis garners support. Instead, we demonstrate that regulations proposed by more liberally oriented agencies are more likely to be changed—and the content of the rules changed to a greater degree—than those proposed by other agency types. Those results suggest a provocative third possibility: presidentially directed deregulation through OIRA review.",oa:"https://openalex.org/W2883711090",cite:25},
+{id:"raso2015",label:"Raso 2015",title:"Agency Avoidance of Rulemaking Procedures",au:["Raso"],yr:2015,w:10,t:"add",p:2,j:"Admin. Law Rev.",tags:["avoidance","procedures"],doi:""},
+{id:"feinsteinWood2022",label:"Feinstein & Wood 2022",title:"Divided Agencies",au:["Feinstein","Wood"],yr:2022,w:10,t:"add",p:2,j:"S. Cal. Law Rev.",tags:["divided","agencies"],doi:""},
+// Week 11
+{id:"stigler1971",label:"Stigler 1971",title:"The Theory of Economic Regulation",au:["Stigler"],yr:1971,w:11,t:"req",p:2,j:"Bell J.",tags:["capture","regulation"],doi:"10.2307/3003160",oa:"https://openalex.org/W4293229472",cite:7749},
+{id:"carpenter2004",label:"Carpenter 2004",title:"Protection without Capture",au:["Carpenter"],yr:2004,w:11,t:"req",p:2,j:"APSR",tags:["FDA","capture","reputation"],doi:"10.1017/s0003055404041383",abs:"When policy arrangements appear to favor well-organized and wealthy interests, should we infer “capture” of the political process? In particular, might larger firms receive regulatory “protection” even when the regulatory agency is not captured by producers? I model regulatory approval—product approval, licensing, permitting and grant making—as a repeated optimal stopping problem faced by a learning regulator subject to variable political pressure. The model is general but stylistically applied to pharmaceutical regulation. Under the assumption that consumers are differentially organized, but producers are not, there nonetheless exist two forms of “protection” for larger, older producers. First, firms submitting more applications may expect quicker and more likely approvals, even in cases where their reputations for safety are below industry average. Second, “early entrants” to an exclusive market niche (disease) receive shorter expected approval times than later entrants, even when later entrants offer known quality improvements. The findings extend to cases of bounded rationality and a reduced form of endogenous firm submissions. The model shows that even interest-neutral “consumer” regulation can generate protectionist outcomes, and that commonly adduced evidence for capture is often observationally equivalent to evidence for other models of regulation.",oa:"https://openalex.org/W2152232076",cite:214},
+{id:"gordonHafer2005",label:"Gordon & Hafer 2005",title:"Flexing Muscle: Corporate Political Expenditures",au:["Gordon","Hafer"],yr:2005,w:11,t:"req",p:2,j:"APSR",tags:["lobbying","signaling"],doi:"10.1017/s0003055405051634",abs:"Regulatory agencies impose costs and benefits tailored to individual firms through their discretionary enforcement activities. We propose that corporations use political expenditures in part to “flex their muscles” to regulators and convey their willingness to fight an agency's specific determinations in the political arena. Because the signaling function of political expenditures is strategically complex, we derive a formal model wherein we demonstrate the existence of an equilibrium in which (1) large political donors are less compliant than smaller ones, but the bureaucracy monitors them less , and (2) firms with publicly observable problems reduce their political expenditures. We test the empirical implications of the model using plant-level data from the Nuclear Regulatory Commission on the inspection of 63 privately operated nuclear power plants and the political expenditures of their parent companies. We find strong evidence for the first prediction and qualified support for the second.",oa:"https://openalex.org/W2111270827",cite:291},
+{id:"peltzman1976",label:"Peltzman 1976",title:"Toward a More General Theory of Regulation",au:["Peltzman"],yr:1976,w:11,t:"add",p:2,j:"JLE",tags:["regulation","equilibrium"],doi:"10.1086/466865",abs:"George Stigler's work on the theory of regulation is one of those rare contributions--rare for the rest of us, though not for him--which force a fundamental change in the way important problems are analyzed.",oa:"https://openalex.org/W2102461236",cite:473},
+{id:"becker1983",label:"Becker 1983",title:"Competition Among Pressure Groups",au:["Becker"],yr:1983,w:11,t:"add",p:2,j:"QJE",tags:["interest-groups","competition"],doi:"10.2307/1886017",abs:"This paper presents a theory of competition among pressure groups for political influence. Political equilibrium depends on the efficiency of each group in producing pressure, the effect of additional pressure on their influence, the number of persons in different groups, and the deadweight cost of taxes and subsidies. An increase in deadweight costs discourages pressure by subsidized groups and encourages pressure by taxpayers. This analysis unifies the view that governments correct market failures with the view that they favor the politically powerful: both are produced by the competition for political favors.",oa:"https://openalex.org/W1982375873",cite:4172},
+{id:"laffontTirole1991",label:"Laffont & Tirole 1991",title:"The Politics of Government Decision-Making",au:["Laffont","Tirole"],yr:1991,w:11,t:"add",p:2,j:"QJE",tags:["capture","collusion"],doi:"10.2307/2937958",abs:"The paper develops an agency-theoretic approach to interest-group politics and shows the following: (1) the organizational response to the possibility of regulatory agency politics is to reduce the stakes interest groups have in regulation. (2) The threat of producer protection leads to low-powered incentive schemes for regulated firms. (3) Consumer politics may induce uniform pricing by a multiproduct firm. (4) An interest group has more power when its interest lies in inefficient rather than efficient regulation, where inefficiency is measured by the degree of informational asymmetry between the regulated industry and the political principal (Congress).",oa:"https://openalex.org/W2099416858",cite:1122},
+{id:"dalbo2006",label:"Dal Bo 2006",title:"Regulatory Capture: A Review",au:["Dal Bo"],yr:2006,w:11,t:"add",p:2,j:"Oxford Rev. Econ. Pol.",tags:["review","capture"],doi:"10.1093/oxrep/grj013",abs:"This article reviews both the theoretical and empirical literatures on regulatory capture. The scope is broad, but utility regulation is emphasized. I begin by describing the Stigler–Peltzman approach to the economics of regulation. I then open the black box of influence and regulatory discretion using a three-tier hierarchical agency model under asymmetric information (in the spirit of Laffont and Tirole, 1993). I discuss alternative modelling approaches with a view to a richer set of positive predictions, including models of common agency, revolving doors, informational lobbying, coercive pressure, and influence over committees. I discuss empirical work involving capture and regulatory outcomes. I also review evidence on the revolving-door phenomenon and on the impact that different methods for selecting regulators appear to have on regulatory outcomes. The last section contains open questions for future research.",oa:"https://openalex.org/W2107912056",cite:928},
+{id:"carpenterMoss2014",label:"Carpenter & Moss 2014",title:"Preventing Regulatory Capture",au:["Carpenter","Moss"],yr:2014,w:11,t:"add",p:2,bk:1,j:"Cambridge UP",tags:["capture","prevention"],doi:"10.1017/cbo9781139565875",abs:"When regulations (or lack thereof) seem to detract from the common good, critics often point to regulatory capture as a culprit. In some academic and policy circles it seems to have assumed the status of an immutable law. Yet for all the ink spilled describing and decrying capture, the concept remains difficult to nail down in practice. Is capture truly as powerful and unpreventable as the informed consensus seems to suggest? This edited volume brings together seventeen scholars from across the social sciences to address this question. Their work shows that capture is often misdiagnosed and may in fact be preventable and manageable. Focusing on the goal of prevention, the volume advances a more rigorous and empirical standard for diagnosing and measuring capture, paving the way for new lines of academic inquiry and more precise and nuanced reform.",oa:"https://openalex.org/W2281799576",cite:378},
+// Week 12
+{id:"carpenterKrause2012",label:"Carpenter & Krause 2012",title:"Reputation and Public Administration",au:["Carpenter","Krause"],yr:2012,w:12,t:"req",p:3,j:"PAR",tags:["reputation","public-administration"],doi:"10.1111/j.1540-6210.2011.02506.x",abs:"This article examines the application of organizational reputation to public administration. Organizational reputation is defined as a set of beliefs about an organization’s capacities, intentions, history, and mission that are embedded in a network of multiple audiences. The authors assert that the way in which organizational reputations are formed and subsequently cultivated is fundamental to understanding the role of public administration in a democracy. A review of the basic assumptions and empirical work on organizational reputation in the public sector identifies a series of stylized facts that extends our understanding of the functioning of public agencies. In particular, the authors examine the relationship between organizational reputation and bureaucratic autonomy.",oa:"https://openalex.org/W2029593486",cite:529},
+{id:"bertelliBusuioc2021",label:"Bertelli & Busuioc 2021",title:"Reputation-Sourced Authority",au:["Bertelli","Busuioc"],yr:2021,w:12,t:"req",p:3,j:"PAR",tags:["reputation","authority"],doi:"10.1111/puar.13281",abs:"We explore the democratic implications of a reputational account of bureaucratic authority. While an influential literature has examined the relevance of reputation-and mutual exchange between principals and agents in public organizations generally-the normative implications of these insights have largely escaped scrutiny. We discuss how reputation-building impacts both the ability and the motivation of principals to oversee administrative policymaking. We argue that reputation-sourced authority eschews ex ante incentives through the claims-making and maneuvering of bureaucrats as they develop reputations with audiences. At the same time, it de-legitimizes ex post oversight because monitoring and compliance must compete both with reputational authority and with resistance from the audiences that are the very sources of such authority.",oa:"https://openalex.org/W3048117600",cite:50},
+{id:"carpenter2010",label:"Carpenter 2010",title:"Reputation and Power: FDA",au:["Carpenter"],yr:2010,w:12,t:"add",p:3,bk:1,j:"Princeton UP",tags:["FDA","reputation"],doi:"10.7910/dvn/7ehmqk",abs:"A large-scale theoretical, historical and statistical analysis of pharmaceutical regulation in the United States as it is carried out by the U.S. Food and Drug Administration (FDA). This project has been funded by the National Science Foundation (SES-0076452, for 'Formal and Empirical Analyses of Bureaucratic Delay: The Case of FDA Drug Review') (2000-2003), the Robert Wood Johnson Foundation Scholars in Health Policy Program (1998-2000), a Robert Wood Johnson Foundation Investigator Award in Health Policy Research (2004-2006), and the PriceWaterhouse Coopers Endowment for the Business of Government. None of these foundations or entities in any way endorses, or is otherwise responsible for, the contents of this Web site or Web page, or for any papers produced or claims found herein. Professor Carpenter neither seeks nor accepts research funding or any other form of compensation from the FDA, from private entities that may sponsor product applications to the FDA or that are otherwise regulated by the FDA, from patient advocacy groups or from consumer advocacy groups (e.g., Public Citizen). In addition, Professor Carpenter does not directly own stock or any other form of asset in any company regulated by the FDA. &lt;br /&gt;&lt;br /&gt; &lt;b&gt;Reviews and Reactions&lt;/b&gt;:&lt;br /&gt; &lt;a href='http://marginalrevolution.com/marginalrevolution/2010/02/reputation-and-power-a-new-theory-of-the-fda.html'&gt;Tyler Cowen's treatment at Marginal Revolution&lt;/a&gt; &lt;br /&gt; &lt;a href='http://www.washingtonmonthly.com/features/2010/1005.teles.html'&gt;Steven Teles' review in the Washington Monthly&lt;/a&gt; &lt;br /&gt; &lt;a href='http://www.newyorker.com/talk/financial/2010/06/14/100614ta_talk_surowiecki'&gt;James Surowiecki's discussion in The New Yorker&lt;/a&gt; &lt;a href='http://www.washingtonpost.com/wp-dyn/content/article/2010/07/03/AR2010070300085.html'&gt;Ezra Klein's discussion in thinking about regulatory status [Washington Post and Newsweek]&lt;/a&gt; &lt;br /&gt;&lt;br /&gt; &lt;b&gt;Other references and reviews from Fall 2010 onward&lt;/b&gt;:&lt;br /&gt; &lt;a href='http://www.nytimes.com/2010/09/14/health/14kelsey.html?_r=1'&gt;Gardiner Harris' story on Frances Kelsey [New York Times]&lt;/a&gt; &lt;br /&gt; &lt;a href='http://www.nybooks.com/articles/archives/2010/sep/30/agency-can-be-dangerous/'&gt; A broadside from the pharmaceutical left: Marcia Angell's review &lt;/a&gt; in the New York Review of Books [subscription required] and &lt;a href='http://www.nybooks.com/articles/archives/2010/oct/28/how-dangerous-fda-exchange/'&gt;my response (in print)&lt;/a&gt; and &lt;a href='http://people.hmdc.harvard.edu/~dcarpent/angellresponse20100920.pdf'&gt;a more thorough response&lt;/a&gt; with a catalog of her many errors and mischaracterizations. &lt;a href='http://people.hmdc.harvard.edu/~dcarpent/angellresponse20100920-original.pdf'&gt;The original response&lt;/a&gt; posted on September 20 is here , and &lt;a href='http://people.hmdc.harvard.edu/~dcarpent/carpenterNYRBrejoinder.pdf'&gt;my response &lt;/a&gt; to Angell's rejoinder in the NYRB is posted separately here. &lt;br /&gt; &lt;a href='http://www.thefreelibrary.com/Drug+kingpin%3A+Reputation+And+Power%3A+Organizational+Image+and...-a0240623036'&gt;A broadside from the pharmaceutical right: anti-regulatory conservative Henry Miller's review in Issues in Science and Technology.&lt;/a&gt;&lt;br /&gt; &lt;a href='http://www.nature.com/nchem/journal/v2/n10/full/nchem.845.h tml'&gt;Review in Nature Chemistry&lt;/a&gt;&lt;br /&gt; &lt;a href='http://download.thelancet.com/pdfs/journals/lancet/PIIS0140673610619794.pdf'&gt;Review in Lancet&lt;/a&gt;&lt;br /&gt;",oa:"https://openalex.org/W4398314608",cite:91},
+{id:"skowronek1982",label:"Skowronek 1982",title:"Building a New American State",au:["Skowronek"],yr:1982,w:12,t:"add",p:3,bk:1,j:"Cambridge UP",tags:["APD","state-building"],doi:"10.1017/cbo9780511665080",abs:"This book is about governmental change in America. It examines the reconstruction of institutional power relationships that had to be negotiated among the courts, the parties, the president, the Congress and the states in order to accommodate the expansion of national administrative capacities around the turn of the twentieth century. Stephen Skowronek argues that new institutional forms and procedures do not arise reflexively or automatically in response to environmental demands on government, but must be extorted through political and institutional struggles that are rooted in and mediated by pre-established governing arrangements. As the first full-scale historical treatment of the development of American national administration, this book will provide a useful textbook for public administration courses.",oa:"https://openalex.org/W4235894405",cite:1572},
+{id:"wilson1989",label:"Wilson 1989",title:"Bureaucracy: What Government Agencies Do",au:["Wilson JQ"],yr:1989,w:12,t:"add",p:3,bk:1,j:"Basic Books",tags:["typology","agencies"],doi:"10.5860/choice.27-4796",abs:"Organizations * Armies, Prisons, Schools * Organization Matters Operators * Circumstances * Beliefs * Interests * Culture Managers * Constraints * People * Compliance Executives * Turf * Strategies * Innovation Context * Congress * Presidents * Courts * National Differences Change * Problems * Rules * Markets * Bureaucracy and the Public Interest",oa:"https://openalex.org/W2114412976",cite:3858},
+{id:"bellodi2023",label:"Bellodi 2023",title:"A Dynamic Measure of Bureaucratic Reputation",au:["Bellodi"],yr:2023,w:12,t:"add",p:3,j:"AJPS",tags:["reputation","measurement"],doi:"10.1111/ajps.12695",abs:"Abstract Bureaucratic reputation is one of the most important concepts used to understand the behavior of administrative agencies and their interactions with multiple audiences. Despite a rich theoretical literature discussing reputation, we do not have a comparable measure across agencies, between countries, and over time. I present a new strategy to measure bureaucratic reputation from legislative speeches with word‐embedding techniques. I introduce an original dataset on the reputation of 465 bureaucratic bodies over a period of 40 years, and across two countries—the U.S. and the U.K. I perform several validation tests and present an application of this method to investigate whether partisanship and agency politicization matter for reputation. I find that agencies enjoy a better reputation among the members of the party in government, with partisan differences less pronounced for independent bodies. Finally, I discuss how this measurement strategy can contribute to classical and new questions about political–administrative interactions.",oa:"https://openalex.org/W4225080177",cite:17},
+{id:"berschFukuyama2023",label:"Bersch & Fukuyama 2023",title:"Defining Bureaucratic Autonomy",au:["Bersch","Fukuyama"],yr:2023,w:12,t:"add",p:3,j:"ARPS",tags:["autonomy","definition"],doi:"10.1146/annurev-polisci-051921-102914",abs:"In political science, one issue still in need of greater theorizing is the proper measurement of bureaucratic autonomy, that is, the degree of discretion that political principals should grant to bureaucratic agents. This article reviews the literature on bureaucratic autonomy both in US administrative law and in political science. It uses the American experience to define five mechanisms by which political principals grant and limit autonomy, then goes on to survey the comparative literature on other democratic systems using the American framework as a baseline. Other democracies use different mixtures of these mechanisms, for example by substituting stronger ex post review for ex ante procedures or using appointment and removal power in place of either. We find that the administrative law and social science literatures on this topic approach it very differently, and that each would profit from greater awareness of the other discipline.",oa:"https://openalex.org/W4311691028",cite:38},
+// Week 13
+{id:"huberMcCarty2004",label:"Huber & McCarty 2004",title:"Bureaucratic Capacity, Delegation, and Political Reform",au:["Huber","McCarty"],yr:2004,w:13,t:"req",p:3,j:"APSR",tags:["capacity","delegation","reform"],doi:"10.1017/S0003055404001297",abs:"We analyze a model of delegation and policymaking in polities where bureaucratic capacity is low. Our analysis suggests that low bureaucratic capacity diminishes incentives for bureaucrats to comply with legislation, making it more difficult for politicians to induce bureaucrats to take actions that politicians desire. Consequently, when bureaucratic capacity is low, standard principles in the theoretical literature on delegation no longer hold. We also use the model to examine the issue of political reform in polities with low bureaucratic capacity. The model indicates that politicians in such polities will be trapped in a situation whereby they have little incentive to undertake reforms of either the bureaucracy or other institutions (such as courts) that are crucial for successful policymaking.",oa:"https://openalex.org/W2140074439",cite:349},
+{id:"ujhelyi2014",label:"Ujhelyi 2014",title:"Civil Service Rules and Policy Choices",au:["Ujhelyi"],yr:2014,w:13,t:"req",p:3,j:"AEJ: Econ. Pol.",tags:["civil-service","states"],doi:"10.1257/pol.6.2.338",abs:"This paper studies the policy impact of civil service regulations, exploiting reforms undertaken by US state governments throughout the twentieth century. These reforms replaced political patronage with a civil service recruited based on merit and protected from politics. I find that state politicians respond to these changes by spending relatively less through the reformed state-level bureaucracies. Instead, they allocate more funds to lower level governments. The reallocation of expenditures leads to reduced long-term investment by state governments. (JEL D73, H72, H77, H79)",oa:"https://openalex.org/W3124259474",cite:1},
+{id:"spenkuch2023",label:"Spenkuch+ 2023",title:"Ideology and Performance in Public Organizations",au:["Spenkuch","Teso","Xu"],yr:2023,w:13,t:"req",p:3,j:"Econometrica",tags:["ideology","performance"],doi:"10.3982/ecta20355",abs:"We combine personnel records of the United States federal bureaucracy from 1997 to 2019 with administrative voter registration data to study how ideological alignment between politicians and bureaucrats affects turnover and performance. We document significant partisan cycles and turnover among political appointees. By contrast, we find no political cycles in the civil service. At any point in time, a sizable share of bureaucrats is ideologically misaligned with their political leaders. We study the performance implications of this misalignment for the case of procurement officers. Exploiting presidential transitions as a source of “within‐bureaucrat” variation in political alignment, we find that procurement contracts overseen by misaligned officers exhibit greater cost overruns and delays. We provide evidence consistent with a general “morale effect,” whereby misaligned bureaucrats are less motivated to pursue the organizational mission. Our results thus help to shed some of the first light on the costs of ideological misalignment within public organizations.",oa:"https://openalex.org/W4385364884",cite:100},
+{id:"huberTing2021",label:"Huber & Ting 2021",title:"Civil Service and Patronage",au:["Huber","Ting"],yr:2021,w:13,t:"add",p:3,j:"JOP",tags:["civil-service","patronage"],doi:"10.1086/711057",abs:"How do politicians staff the bureaucracy and what are the policy implications? We develop a dynamic model of personnel policy, bureaucratic quality, and electoral competition. In each period, incumbents choose how much to support patronage and civil service personnel systems. The civil service system is needed to produce public goods, but patronage provides private goods and improves an incumbent’s reelection prospects. Incumbents must also worry about whether opponents will sustain the civil service system following an electoral loss. Our results demonstrate the importance of a cross-party commitment to public goods, along with low costs of civil service hiring, for encouraging good government in equilibrium. The model also suggests that electoral competitiveness has only a limited influence on good government and challenges previous arguments about electoral vulnerability and civil service reform. We finally present empirical evidence regarding our predicted relationship between party system convergence and merit-based hiring.",oa:"https://openalex.org/W2587009005",cite:29},
+{id:"bolton2021",label:"Bolton+ 2021",title:"Elections, Ideology, and Turnover",au:["Bolton","de Figueiredo","Lewis"],yr:2021,w:13,t:"add",p:3,j:"JPART",tags:["elections","turnover"],doi:"10.1093/jopart/muaa051",abs:"Abstract A defining feature of public sector employment in the United States is the regular change in elected leadership. We describe how these changes alter policy and disrupt civil servants’ influence over agency decisions, potentially shaping their career choices. Using data on careers from over three million federal employees in the United States from 1988 to 2011, we evaluate how administration changes influence turnover in a series of regression analyses. We find substantial stability in the civil service but also some pockets of responsiveness to political factors, particularly among career senior executives in agencies with views divergent from the president’s. A combination of factors, including transitions, policy priorities, and ideological differences, could increase turnover propensity for these employees by nearly one-third in some agencies over an administration’s first term. This has implications for understanding possible mechanisms linking politics and organizational capacity and for understanding how and for whom politics is influential in career decisions.",oa:"https://openalex.org/W3104249867",cite:63},
+{id:"cameronDeFigueiredo2020",label:"Cameron & de Figueiredo 2020",title:"Quitting in Protest",au:["Cameron","de Figueiredo"],yr:2020,w:13,t:"add",p:3,j:"QJPS",tags:["exit","protest"],doi:"10.1561/100.00018015",abs:"We formally model the impact of presidential policymaking on the willingness of bureaucrats to exert effort and stay in the government. In the model, centralized policy initiative by the president demotivates policy-oriented bureaucrats and can impel them to quit rather than implicate themselves in presidentially imposed policies they dislike. Those most likely to quit are a range of moderate bureaucrats. More extreme bureaucrats may be willing to wait out an incumbent president in the hope of shaping future policy. As control of the White House alternates between ideologically opposed extreme presidents, policy-minded moderates depart from bureaucratic agencies leaving only policy extremists or poorly performing “slackers.” The consequences for policy making are substantial. Despite these adverse consequences, presidents have strong incentives to engage in centralized policymaking.",oa:"https://openalex.org/W3014839123",cite:30},
+{id:"dahlstromLapuente2017",label:"Dahlstrom & Lapuente 2017",title:"Organizing Leviathan",au:["Dahlstrom","Lapuente"],yr:2017,w:13,t:"add",p:3,bk:1,j:"Cambridge UP",tags:["comparative","merit"],doi:"10.1017/9781316822869",abs:"Why are some countries less corrupt and better governed than others? Challenging conventional explanations on the remarkable differences in quality of government worldwide, this book argues that the organization of bureaucracy is an often overlooked but critical factor. Countries where merit-recruited employees occupy public bureaucracies perform better than those where public employees owe their post to political connections. The book provides a coherent theory of why, and ample evidence showing that meritocratic bureaucracies are conducive to lower levels of corruption, higher government effectiveness, and more flexibility to adopt modernizing reforms. Data comes from both a novel dataset on the bureaucratic structures of over 100 countries as well as from narratives of particular countries, with a special focus on the relationship between politicians and bureaucrats in Spain and Sweden. A notable contribution to the literature in comparative politics and public policy on good governance, and to corruption studies more widely.",oa:"https://openalex.org/W4248557076",cite:182},
+{id:"rauchEvans2000",label:"Rauch & Evans 2000",title:"Bureaucratic Structure and Performance in LDCs",au:["Rauch","Evans"],yr:2000,w:13,t:"add",p:3,j:"J. Public Econ.",tags:["comparative","development"],doi:"10.1016/s0047-2727(99)00044-4",oa:"https://openalex.org/W2120303470",cite:1202},
+{id:"gibbs2020",label:"Gibbs 2020",title:"Civil Service Reform, Self-Selection, and Performance",au:["Gibbs"],yr:2020,w:13,t:"add",p:3,j:"Econ. & Politics",tags:["reform","selection"],doi:"10.1111/ecpo.12151",abs:"Abstract I use a formal model to analyze the effect of civil service protections on bureaucratic performance. In a two‐period model, a public manager observes a bureaucrat's actions for a period and decides whether to retain or attempt to remove the bureaucrat. Bureaucrats vary in terms of their intrinsic motivation and choose between careers in government or the private sector. I show that bureaucratic performance is greater in any separating equilibrium in which motivated bureaucrats choose government than in all equilibria in which they do not. Stronger civil service protections reduce the amount of effort that motivated bureaucrats must exert to distinguish themselves from their unmotivated peers in order to ensure retention. This strengthens incentives for motivated bureaucrats to choose careers in government. Stronger civil service protections, however, also reduce the ability of public managers to remove unmotivated bureaucrats. These competing effects yield a non‐monotonic and discontinuous relationship between civil service protections and bureaucratic performance. I use the model to analyze recent reforms to U.S. state and federal personnel management that have significantly rolled back traditional job protections.",oa:"https://openalex.org/W3005779039",cite:12},
+{id:"moynihan2025",label:"Moynihan 2025",title:"Rescuing State Capacity",au:["Moynihan"],yr:2025,w:13,t:"add",p:3,j:"JPAM",tags:["capacity","proceduralism","Schedule-F"],doi:"10.1002/pam.22673",abs:"Abstract The administrative capacity of a government matters enormously to public policy design and implementation. But it is usually taken for granted in public policy settings, a background variable left largely unconsidered. This essay argues that the fields of public policy and public management need to more directly consider threats to state capacity. A creeping threat is a tendency towards proceduralism that layers in rules, veto points, and delay that constrains state actors from achieving critical goals. A more immediate threat for the American administrative state is a dramatic increase in the politicization of public service delivery. This new model of politicization pursued by President Trump features three key attributes: 1) a personalist infrastructure of presidential power that centers on loyalty above all other values; 2) governing by fear via conspiratorial messaging towards the public sector and threatening individual public servants; and 3) a weakening of civil service protections that blurs the traditional distinction between political appointees and civil servants and enables purges of those deemed to be disloyal.",oa:"https://openalex.org/W4407671670",cite:15},
+{id:"bednar2024",label:"Bednar 2024",title:"Bureaucratic Autonomy and Policymaking Capacity",au:["Bednar"],yr:2024,w:13,t:"add",p:3,j:"PSRM",tags:["capacity","FedScope"],doi:"10.1017/psrm.2023.27",abs:"Abstract Despite a renewed interest in the health of the US administrative state, the absence of meaningful time-series measures of bureaucratic capacity hinders the testing of core theories of bureaucratic and executive politics. Using over 190 million personnel records, I estimate 5590 yearly policymaking-capacity scores for 261 unique agencies from 1998 to 2021. These measures provide an invaluable tool as either an independent or dependent variable in studies of administrative policymaking. To illustrate the value of these measures, I test longstanding theories about the relationship between bureaucratic autonomy and capacity. In contrast with emerging survey research, this study demonstrates that agencies with higher levels of structural independence have higher levels of policymaking capacity.",oa:"https://openalex.org/W4385636141",cite:10},
+{id:"bellodiMorelli2024",label:"Bellodi & Morelli 2024",title:"A Costly Commitment: Populism and Bureaucracy",au:["Bellodi","Morelli"],yr:2024,w:13,t:"add",p:3,j:"AJPS",tags:["populism","quality"],doi:"10.1111/ajps.12782",abs:"Abstract We study the consequences of populism for economic performance and the quality of bureaucracy. When voters lose trust in representative democracy, populists strategically supply unconditional policy commitments that are easier to monitor for voters. When in power, populists try to implement their policy commitments regardless of financial constraints and expert assessment of the feasibility of their policies, worsening government economic performance and dismantling resistance from expert bureaucrats. With novel data on more than 8,000 Italian municipalities covering more than 20 years, we estimate the effect of electing a populist mayor with a close‐election regression discontinuity design. We find that the election of a populist mayor leads to smaller repayments of debts, a larger share of procurement contracts with cost overruns, higher turnover among top bureaucrats—driven by forced rather than voluntary departures—and a sharp decrease in the percentage of postgraduate bureaucrats.",oa:"https://openalex.org/W4362586808",cite:47},
+// Week 14
+{id:"turner2017",label:"Turner 2017",title:"Working Smart and Hard? Agency Effort and Judicial Review",au:["Turner"],yr:2017,w:14,t:"req",p:3,j:"JTP",tags:["judicial-review","effort"],doi:"10.1177/0951629816630430",abs:"The lion’s share of policy in the United States is made by administrative agencies. Agencies not only make policy choices, they must also implement policy effectively. Oversight institutions play an integral role in the policymaking process by monitoring, through review of agency policy actions, both policymaking tasks. Through analysis of a formal model I develop a theory of policymaking between agencies and courts and show that review can impact agency effort choices even when bureaucratic subversion is not a concern. At times the court has no impact on this effort and the agency is unconstrained. However, when the agency’s effort dictates whether or not the court defers to the agency’s actions judicial review does affect effort decisions. In this setting, review can either strengthen or, counter-intuitively, weaken agency effort incentives. Implications for executive and congressional oversight are discussed in light of these results.",oa:"https://openalex.org/W3122310918",cite:33},
+{id:"eskridgeRaso2010",label:"Eskridge & Raso 2010",title:"Chevron as a Canon, Not a Precedent",au:["Eskridge","Raso"],yr:2010,w:14,t:"req",p:3,j:"Columbia Law Rev.",tags:["Chevron","deference"],doi:"",abs:"Legal scholars and jurists believe that federal judges often defer to agency interpretations of statutes. Debate has focused on when judges should defer and how judges should operationalize a deference regime doctrinally, perhaps as a matter of stare decisis. Such normative debates about deference rest upon assumptions that have not been rigorously tested, however. Examining the entire population of Supreme Court cases where an agency interpretation was in play (1984–2006), our empirical study finds that the Justices do not generally give deference-regime precedents anything close to stare decisis effect, but that the policies underlying the major deference regimes do have a discernible effect at the Supreme Court level. We also find that judicial ideology affects the Justices’ applications of deference regimes. As a descriptive matter, we find that deference regimes are more like canons of statutory construction, applied episodically but reflecting deeper judicial commitments, than like binding precedents, faithfully applied, distinguished, or overruled.As a prescriptive matter, this study provides empirical support for proposals to simplify the Supreme Court’s continuum of deference regimes and to characterize the Court’s deference decisions in the form of canons of statutory construction, and certainly not as precedents entitled to stare decisis effect. More broadly, the empirical analysis casts doubt on both the wisdom and the practicability of academic proposals to treat methodological opinions (such as Chevron) as precedents entitled to stare decisis. A jurisprudential reason for this skepticism, buttressed by the data in our study, is that statutory interpretation methodology (including deference) is inherently ad hoc and ought to be tailored to the circumstances of each statutory case, rather than bound to precommitted rules. Put another way, judicial deference to agency interpretations is a matter where bright-line rules will not necessarily yield greater predictability and law-like behavior among judges than context-saturated standards.",oa:"https://openalex.org/W2113209035",cite:11},
+{id:"barnett2018",label:"Barnett+ 2018",title:"The Politics of Selecting Chevron Deference",au:["Barnett","Boyd","Walker"],yr:2018,w:14,t:"req",p:3,j:"JELS",tags:["Chevron","selection"],doi:"10.1111/jels.12187",abs:"In this article, we examine an important threshold question in judicial behavior and administrative law: When do federal circuit courts decide to use the Chevron deference framework and when do they select a framework that is less deferential to the administrative agency's statutory interpretation? The question is important because the purpose of Chevron deference is to give agencies—not judges—policy‐making space within statutory interpretation. We expect, nonetheless, that whether to invoke the Chevron framework is largely driven by political dynamics, with judges adopting a less deferential standard when their political preferences do not align with the agency's decision. To provide insight, we analyze circuit court decisions from 2003 until 2013 that review agency statutory interpretations. Our results—from the largest and most comprehensive database of its kind—provide partial confirmation of our expectations. When courts reviewed liberal agency interpretations, all panels—liberal, moderate, and conservative—were equally likely to apply Chevron. However, when reviewing conservative agency interpretations, liberal panels selected the Chevron deference framework significantly less frequently than conservative panels. Contrary to limited prior studies, we find no evidence of “whistleblower” or disciplining effects when judges of different judicial ideologies comprised the panel. Viewed together, our results provide important implications for the current debate on whether to eliminate, narrow, or clarify Chevron 's domain.",oa:"https://openalex.org/W2886513279",cite:14},
+{id:"shipan1997",label:"Shipan 1997",title:"Designing Judicial Review",au:["Shipan"],yr:1997,w:14,t:"add",p:3,bk:1,j:"U Michigan Press",tags:["judicial-review","design"],doi:"10.2307/2658101",abs:"Journal Article Designing Judicial Review: Interest Groups, Congress, and Communications Policy Get access Designing Judicial Review: Interest Groups, Congress, and Communications Policy by Charles R. Shipan. Ann Arbor, University of Michigan Press, 1997. 173 pp. $42.50. R. Shep Melnick R. Shep Melnick Boston College Search for other works by this author on: Oxford Academic Google Scholar Political Science Quarterly, Volume 113, Issue 3, Fall 1998, Pages 540–542, https://doi.org/10.2307/2658101 Published: 15 February 2013",oa:"https://openalex.org/W2041377671",cite:64},
+{id:"gailmardPatty2017",label:"Gailmard & Patty 2017",title:"Participation, Process, & Policy",au:["Gailmard","Patty"],yr:2017,w:14,t:"add",p:3,j:"J. Public Policy",tags:["judicial-review","information"],doi:"10.1017/s0143814x16000106"},
+{id:"rodriguezWeingast2015",label:"Rodriguez & Weingast 2015",title:"Reformation of Administrative Law Revisited",au:["Rodriguez","Weingast"],yr:2015,w:14,t:"add",p:3,j:"JLEO",tags:["admin-law","reformation"],doi:"10.1093/jleo/ewv018",abs:"The archetype of the New Deal agency, exercising neutral, technocratic expertise, is no longer tenable. As Richard Stewart (1975. 'Reformation of Administrative Law, ' 88 Harvard Law Review 1667–813) noted 35 years ago, administrative law 'is undergoing a fundamental transformation.' Following Stewart, the modern explanation in legal scholarship of the transformation is that federal judges came to the rescue of the administrative state, actively intervening in the regulatory process in order to preserve key values which had been threatened by an admixture of internal pathologies and external (read: 'political') threats. We argue that the traditional explanation neglects a central aspect of the major transformations in American regulatory politics during the past half century—the critical role of Congress and the President in the reformation of both the American regulatory state and administrative law. The traditional explanation in legal scholarship, that courts implemented values and agendas separate from legislative aims, and hence separate from politics, is flawed because it neglects the larger transformations, beginning in the 1960s and continuing over the next two decades, in American national politics. During this period, a wide range of new constituencies arose, including the environmentalists, consumerists. The courts’ role in the reformation must be seen in this broader political transformation of the 1960s and 1970s rather than in a court-centric perspective in isolation from the rest of the political system. We illustrate our thesis with nuclear power regulation, which demonstrates the critical, joint roles of entrepreneurs in Congress and the courts.",oa:"https://openalex.org/W3123137215",cite:18},
+{id:"loperBright2024",label:"Loper Bright 2024",title:"Loper Bright v. Raimondo (overturning Chevron)",au:[],yr:2024,w:14,t:"add",p:3,j:"144 S.Ct. 2244",tags:["Chevron","overruled"],doi:"10.2139/ssrn.4899221",oa:"https://openalex.org/W4401735159",cite:1},
+// Appendix
+{id:"lewis2011",label:"Lewis 2011",title:"Presidential Appointments and Personnel",au:["Lewis"],yr:2011,w:0,t:"add",p:4,j:"ARPS",tags:["review","appointments"],doi:"10.1146/annurev-polisci-042009-121225",abs:"This article reviews some recent advances in research on presidential appointments and personnel. I focus specifically on research analyzing changes in the institutional environment of presidential personnel, how presidents make decisions about whom to appoint, and the effects of presidential appointees on outputs. I explore what we know about how presidents have worked to change institutions surrounding presidential personnel by increasing the number of appointees and augmenting White House personnel operations. I examine how presidents decide what factors to value when choosing personnel. When do presidents value loyalty, competence, campaign support, or other characteristics of potential appointees? Finally, I examine the effects of appointees on outputs. What influence do appointees have over outputs and why do some have more influence than others? I describe the general trajectory of research in each area as well as some emerging issues confronting scholars in these areas.",oa:"https://openalex.org/W2131521862",cite:119},
+{id:"krause2011",label:"Krause 2011",title:"Legislative Delegation of Authority",au:["Krause"],yr:2011,w:0,t:"add",p:4,j:"Oxford Handbook",tags:["review","delegation"],doi:"10.1093/oxfordhb/9780199238958.003.0022",oa:"https://openalex.org/W2622228186",cite:25},
+{id:"pepinsky2017",label:"Pepinsky+ 2017",title:"Bureaucracy and Service Delivery",au:["Pepinsky","Pierskalla","Sacks"],yr:2017,w:0,t:"add",p:4,j:"ARPS",tags:["review","service-delivery"],doi:"10.1146/annurev-polisci-051215-022705",abs:"This article reviews the literature on the politics of bureaucracy in the developing world, with a focus on service delivery and bureaucratic performance. We survey classic topics and themes such as the developmental state, principal–agent relations, and the efficient grease hypothesis, and we link them to new research findings in political science, sociology, and economics. We identify the concept of embeddedness as an important yet still underexplored framework that cuts across disciplines and may be used to understand bureaucratic performance and service delivery. Looking forward, we outline a framework for conceptualizing bureaucratic action by exploiting variation across time, space, task, and client, and we identify promising areas for further research on the bureaucrat–citizen encounter in developing countries.",oa:"https://openalex.org/W3206814285",cite:249}
+];
+
+const pMap = {}; P.forEach(p => pMap[p.id] = p);
+
+// Author edges
+const aEdges = [];
+const aMap = {};
+P.forEach(p => p.au.forEach(a => { (aMap[a]||(aMap[a]=[])).push(p.id); }));
+Object.values(aMap).forEach(ids => {
+  if (ids.length < 2) return;
+  for (let i=0;i<ids.length;i++) for (let j=i+1;j<ids.length;j++)
+    if (ids[i]!==ids[j]) aEdges.push({source:ids[i],target:ids[j],type:"author"});
+});
+
+// Thematic edges
+const tEdges = [
+  ["mccubbinsSchwartz1984","mcnollgast1987"],["mcnollgast1987","calvert1989"],
+  ["mcnollgast1987","lowandePoter2021"],["mccubbinsSchwartz1984","banHill2025"],
+  ["stigler1971","peltzman1976"],["peltzman1976","becker1983"],
+  ["stigler1971","carpenter2004"],["carpenter2004","carpenterMoss2014"],
+  ["carpenter2001","carpenterKrause2012"],["carpenter2001","carpenter2010"],
+  ["gailmardPatty2007","gailmardPatty2013"],["holmstromMilgrom1991","prendergast2003"],
+  ["holmstromMilgrom1991","holmstrom1982"],["lewis2008","lowande2019"],
+  ["lewis2008","bednarLewis2024"],["lewis2008","moynihan2025"],
+  ["moe1985","moe1989"],["huberShipan2002","bendorMeirowitz2004"],
+  ["huberShipan2002","epsteinOHalloran1999"],["potter2017","potter2019"],
+  ["potter2017","bolton2016"],["mccarty2004","kinane2021"],
+  ["eskridgeRaso2010","loperBright2024"],["eskridgeRaso2010","barnett2018"],
+  ["bellodi2023","bellodiMorelli2024"],["bednar2024","bednarLewis2024"],
+  ["huberMcCarty2004","ujhelyi2014"],["spenkuch2023","bolton2021"],
+  ["tirole1994","laffontTirole1991"],["dixit2002","holmstromMilgrom1991"],
+  ["berryGersen2017","selin2015"],["niskanen1971","dixit2002"],
+  ["weingastMoran1983","mccubbinsSchwartz1984"],["lewis2003","lewis2008"]
+].map(([s,t]) => ({source:s,target:t,type:"thematic"}));
+
+const es = new Set();
+const allE = [...aEdges,...tEdges].filter(e => {
+  const k = [e.source,e.target].sort().join("|")+e.type;
+  if (es.has(k)) return false; es.add(k); return true;
+});
+
+// ========== RENDERING ==========
+// Brightness per part: grayscale alpha mapping
+const partAlpha = {0:0.20, 1:0.85, 2:0.60, 3:0.42, 4:0.20};
+function nFill(d) {
+  const a = d.bk ? 0.75 : (d.t==="req" ? partAlpha[d.p]+0.10 : partAlpha[d.p]);
+  return `rgba(0,0,0,${Math.min(a,1)})`;
+}
+const mob = () => window.innerWidth <= 768;
+function nR(d) {
+  const m = mob() ? 2.6 : 2.0;
+  return d.t==="req" ? 7*m : (d.bk ? 8*m : 4.5*m);
+}
+
+let showA = true, showT = true, curF = "all";
+let selId = null;
+
+const wrap = document.getElementById("canvas-wrap");
+const svg = d3.select("#network-svg");
+const tip = d3.select("#tip");
+let W = wrap.clientWidth || window.innerWidth;
+let H = wrap.clientHeight || window.innerHeight;
+svg.attr("viewBox",[0,0,W,H]).attr("width",W).attr("height",H);
+
+// Glow filter
+const defs = svg.append("defs");
+const glow = defs.append("filter").attr("id","glow").attr("x","-50%").attr("y","-50%").attr("width","200%").attr("height","200%");
+glow.append("feGaussianBlur").attr("in","SourceGraphic").attr("stdDeviation","3").attr("result","b");
+glow.append("feColorMatrix").attr("in","b").attr("type","matrix")
+  .attr("values","0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.4 0").attr("result","g");
+const gm = glow.append("feMerge");
+gm.append("feMergeNode").attr("in","g");
+gm.append("feMergeNode").attr("in","SourceGraphic");
+
+// Zoom
+const g = svg.append("g");
+const zm = d3.zoom().scaleExtent([0.15,6]).on("zoom",e=>g.attr("transform",e.transform));
+svg.call(zm);
+
+// Sim - scatter initial positions widely
+let nodes = P.map(d=>({...d, x: W/2 + (Math.random()-0.5)*W*0.9, y: H/2 + (Math.random()-0.5)*H*0.9}));
+let links = allE.map(d=>({...d}));
+
+const sim = d3.forceSimulation(nodes)
+  .force("link",d3.forceLink(links).id(d=>d.id).distance(120).strength(0.18))
+  .force("charge",d3.forceManyBody().strength(-250).distanceMax(600))
+  .force("center",d3.forceCenter(W/2,H/2))
+  .force("collide",d3.forceCollide().radius(d=>nR(d)+10).strength(0.9))
+  .force("x",d3.forceX(W/2).strength(0.02))
+  .force("y",d3.forceY(H/2).strength(0.02));
+
+const linkG = g.append("g");
+const nodeG = g.append("g");
+const lblG = g.append("g");
+
+let linkEl, nodeEl, ringEl, lblEl;
+
+function visEdges() {
+  return links.filter(e=>(e.type==="author"?showA:true)&&(e.type==="thematic"?showT:true));
+}
+
+function draw() {
+  const ve = visEdges();
+  linkEl = linkG.selectAll("line").data(ve, d=>{
+    const s=typeof d.source==="object"?d.source.id:d.source;
+    const t=typeof d.target==="object"?d.target.id:d.target;
+    return s+"|"+t+"|"+d.type;
+  });
+  linkEl.exit().remove();
+  linkEl = linkEl.enter().append("line")
+    .attr("stroke",d=>d.type==="thematic"?"rgba(0,0,0,0.18)":"rgba(0,0,0,0.09)")
+    .attr("stroke-width",d=>d.type==="thematic"?1.8:1.2)
+    .attr("stroke-dasharray",d=>d.type==="thematic"?"5,4":"none")
+    .merge(linkEl);
+
+  // Book rings
+  const bookNodes = nodes.filter(d=>d.bk);
+  ringEl = nodeG.selectAll("circle.ring").data(bookNodes, d=>d.id);
+  ringEl.exit().remove();
+  ringEl = ringEl.enter().append("circle").attr("class","ring")
+    .attr("r",d=>nR(d)+3)
+    .attr("fill","none")
+    .attr("stroke","rgba(0,0,0,0.25)")
+    .attr("stroke-width",1.5)
+    .merge(ringEl);
+
+  nodeEl = nodeG.selectAll("circle.node").data(nodes, d=>d.id);
+  nodeEl.exit().remove();
+  nodeEl = nodeEl.enter().append("circle").attr("class","node")
+    .attr("r",nR)
+    .attr("fill",nFill)
+    .attr("cursor","pointer")
+    .call(drag(sim))
+    .on("mouseenter",hoverIn)
+    .on("mouseleave",hoverOut)
+    .on("click",clickNode)
+    .merge(nodeEl);
+
+  lblEl = lblG.selectAll("text").data(nodes, d=>d.id);
+  lblEl.exit().remove();
+  lblEl = lblEl.enter().append("text")
+    .text(d=>(d.au[0]||d.label.split(" ")[0])+" "+d.yr)
+    .attr("font-family","var(--mono)")
+    .attr("font-size",d=>d.t==="req"?"14px":"11px")
+    .attr("fill",d=>d.t==="req"?"rgba(0,0,0,0.7)":"rgba(0,0,0,0.4)")
+    .attr("text-anchor","middle")
+    .attr("dy",d=>nR(d)+12)
+    .attr("pointer-events","none")
+    .merge(lblEl);
+}
+
+draw();
+
+sim.on("tick",()=>{
+  linkEl.attr("x1",d=>d.source.x).attr("y1",d=>d.source.y).attr("x2",d=>d.target.x).attr("y2",d=>d.target.y);
+  ringEl.attr("cx",d=>d.x).attr("cy",d=>d.y);
+  nodeEl.attr("cx",d=>d.x).attr("cy",d=>d.y);
+  lblEl.attr("x",d=>d.x).attr("y",d=>d.y);
+});
+
+function drag(s) {
+  return d3.drag()
+    .on("start",(e,d)=>{if(!e.active)s.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;})
+    .on("drag",(e,d)=>{d.fx=e.x;d.fy=e.y;})
+    .on("end",(e,d)=>{if(!e.active)s.alphaTarget(0);d.fx=null;d.fy=null;});
+}
+
+// Hover: illuminate connections
+function hoverIn(ev,d) {
+  const conn = new Set([d.id]);
+  visEdges().forEach(e=>{
+    const s=typeof e.source==="object"?e.source.id:e.source;
+    const t=typeof e.target==="object"?e.target.id:e.target;
+    if(s===d.id)conn.add(t); if(t===d.id)conn.add(s);
+  });
+
+  nodeEl.attr("fill",n=>conn.has(n.id)?`rgba(0,0,0,${n.id===d.id?0.9:0.65})`:"rgba(0,0,0,0.04)")
+    .attr("filter",n=>n.id===d.id?"url(#glow)":"none");
+  ringEl.attr("stroke",n=>conn.has(n.id)?"rgba(0,0,0,0.5)":"rgba(0,0,0,0.03)");
+  lblEl.attr("fill",n=>conn.has(n.id)?"rgba(0,0,0,0.8)":"rgba(0,0,0,0.04)");
+  linkEl.attr("stroke",e=>{
+    const s=typeof e.source==="object"?e.source.id:e.source;
+    const t=typeof e.target==="object"?e.target.id:e.target;
+    return(s===d.id||t===d.id)?(e.type==="thematic"?"rgba(0,0,0,0.40)":"rgba(0,0,0,0.22)"):"rgba(0,0,0,0.04)";
+  }).attr("stroke-width",e=>{
+    const s=typeof e.source==="object"?e.source.id:e.source;
+    const t=typeof e.target==="object"?e.target.id:e.target;
+    return(s===d.id||t===d.id)?2.5:(e.type==="thematic"?1.8:1.2);
+  });
+
+  tip.style("opacity",1)
+    .html(`<strong>${d.title}</strong><div class="sub">${d.au.join(", ")} (${d.yr}) / ${d.j}</div>`)
+    .style("left",(ev.pageX+14)+"px").style("top",(ev.pageY-12)+"px");
+}
+
+function hoverOut() {
+  nodeEl.attr("fill",nFill).attr("filter","none");
+  ringEl.attr("stroke","rgba(0,0,0,0.25)");
+  lblEl.attr("fill",d=>d.t==="req"?"rgba(0,0,0,0.7)":"rgba(0,0,0,0.4)");
+  linkEl.attr("stroke",d=>d.type==="thematic"?"rgba(0,0,0,0.18)":"rgba(0,0,0,0.09)")
+    .attr("stroke-width",d=>d.type==="thematic"?1.8:1.2);
+  tip.style("opacity",0);
+}
+
+// Click
+function clickNode(ev,d) {
+  ev.stopPropagation();
+  selId = d.id;
+  nodeEl.attr("filter",n=>n.id===d.id?"url(#glow)":"none");
+  showDetail(d);
+}
+
+svg.on("click",()=>{
+  selId=null;
+  nodeEl.attr("filter","none");
+  document.getElementById("detail").innerHTML='<div class="d-empty">click a node</div>';
+  const md=document.getElementById("mob-detail");
+  md.classList.remove("show"); md.innerHTML="";
+});
+
+function showDetail(d) {
+  const wk = d.w===0?"Appendix":"Week "+d.w;
+  const pts=["Intro","I: Theory","II: Control","III: Autonomy","Appendix"];
+  const conns=[];
+  visEdges().forEach(e=>{
+    const s=typeof e.source==="object"?e.source.id:e.source;
+    const t=typeof e.target==="object"?e.target.id:e.target;
+    let o=null; if(s===d.id)o=t; if(t===d.id)o=s;
+    if(o){const x=pMap[o]; if(x)conns.push({label:x.label,id:o,type:e.type});}
+  });
+  const ac=conns.filter(c=>c.type==="author"), tc=conns.filter(c=>c.type==="thematic");
+
+  const doiLine = d.doi
+    ? `<div class="d-field"><span class="k">doi</span><span class="v"><a href="https://doi.org/${d.doi}" target="_blank">${d.doi}</a></span></div>`
+    : '';
+  const citeLine = d.cite
+    ? `<div class="d-field"><span class="k">cited</span><span class="v">${d.cite.toLocaleString()} times (OpenAlex)</span></div>`
+    : '';
+
+  let h=`<div class="d-body">
+    <div class="d-title">${d.title}</div>
+    <div class="d-field"><span class="k">author</span><span class="v">${d.au.join(", ")||"N/A"}</span></div>
+    <div class="d-field"><span class="k">year</span><span class="v">${d.yr}</span></div>
+    <div class="d-field"><span class="k">journal</span><span class="v">${d.j}</span></div>
+    ${doiLine}
+    ${citeLine}
+    <div class="d-badges">
+      <span class="badge hi">${wk}</span>
+      <span class="badge${d.t==='req'?' hi':''}">${d.t==='req'?'required':'additional'}</span>
+      ${d.bk?'<span class="badge hi">book</span>':''}
+      <span class="badge">${pts[d.p]}</span>
+    </div>
+    <div class="d-badges">${d.tags.map(t=>`<span class="badge">${t}</span>`).join("")}</div>`;
+  if(d.abs){
+    h+=`<div class="d-divider"></div><div class="d-sec-title">abstract</div><div class="d-abstract" id="abs-text">${d.abs}</div><div class="d-abs-toggle" id="abs-toggle">show more</div>`;
+  }
+
+  if(ac.length){
+    h+=`<div class="d-divider"></div><div class="d-sec-title">same author (${ac.length})</div>`;
+    ac.forEach(c=>{h+=`<div class="d-link" data-id="${c.id}">${c.label}<span class="lt">author</span></div>`;});
+  }
+  if(tc.length){
+    h+=`<div class="d-divider"></div><div class="d-sec-title">thematic links (${tc.length})</div>`;
+    tc.forEach(c=>{h+=`<div class="d-link" data-id="${c.id}">${c.label}<span class="lt">thematic</span></div>`;});
+  }
+  h+=`</div>`;
+  document.getElementById("detail").innerHTML=h;
+
+  // Mobile: show bottom sheet
+  if(mob()){
+    const md=document.getElementById("mob-detail");
+    md.innerHTML='<div class="handle"></div>'+h;
+    md.classList.add("show");
+    md.querySelectorAll(".d-link").forEach(el=>{
+      el.addEventListener("click",()=>{
+        const id=el.dataset.id;
+        const nd=nodes.find(n=>n.id===id);
+        if(!nd)return;
+        const cw=wrap.clientWidth,ch=wrap.clientHeight;
+        svg.transition().duration(400).call(zm.transform,
+          d3.zoomIdentity.translate(cw/2,ch/2).scale(d3.zoomTransform(svg.node()).k).translate(-nd.x,-nd.y));
+        selId=id;
+        nodeEl.attr("filter",n=>n.id===id?"url(#glow)":"none");
+        showDetail(nd);
+      });
+    });
+  }
+
+  document.querySelectorAll("#detail .d-link").forEach(el=>{
+    el.addEventListener("click",()=>{
+      const id=el.dataset.id;
+      const nd=nodes.find(n=>n.id===id);
+      if(!nd)return;
+      svg.transition().duration(400).call(zm.transform,
+        d3.zoomIdentity.translate(W/2,H/2).scale(d3.zoomTransform(svg.node()).k).translate(-nd.x,-nd.y));
+      selId=id;
+      nodeEl.attr("filter",n=>n.id===id?"url(#glow)":"none");
+      showDetail(nd);
+    });
+  });
+
+  // Abstract toggle (desktop + mobile)
+  document.querySelectorAll(".d-abs-toggle").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const abs=btn.previousElementSibling;
+      if(abs.classList.contains("expanded")){
+        abs.classList.remove("expanded");
+        btn.textContent="show more";
+      } else {
+        abs.classList.add("expanded");
+        btn.textContent="show less";
+      }
+    });
+  });
+}
+
+// Stats
+function upStats(){
+  const v=curF==="all"?P:P.filter(p=>p.p===parseInt(curF));
+  const r=v.filter(p=>p.t==="req").length, a=v.filter(p=>p.t==="add").length;
+  document.getElementById("stats-bar").innerHTML=
+    `<span><span class="n">${v.length}</span> papers</span>`+
+    `<span><span class="n">${r}</span> required</span>`+
+    `<span><span class="n">${a}</span> additional</span>`;
+}
+upStats();
+
+// Part filter
+document.querySelectorAll("#partF .chip").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll("#partF .chip").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");
+    curF=b.dataset.p;
+    const vis=curF==="all"?new Set(P.map(p=>p.id)):new Set(P.filter(p=>p.p===parseInt(curF)).map(p=>p.id));
+    nodeEl.transition().duration(300).attr("opacity",d=>vis.has(d.id)?1:0.03);
+    ringEl.transition().duration(300).attr("opacity",d=>vis.has(d.id)?1:0.03);
+    lblEl.transition().duration(300).attr("fill",d=>vis.has(d.id)?(d.t==="req"?"rgba(0,0,0,0.7)":"rgba(0,0,0,0.4)"):"rgba(0,0,0,0.03)");
+    linkEl.transition().duration(300).attr("stroke",e=>{
+      const s=typeof e.source==="object"?e.source.id:e.source;
+      const t=typeof e.target==="object"?e.target.id:e.target;
+      if(!vis.has(s)||!vis.has(t))return"rgba(0,0,0,0.03)";
+      return e.type==="thematic"?"rgba(0,0,0,0.18)":"rgba(0,0,0,0.09)";
+    });
+    upStats();
+  });
+});
+
+// Edge toggles
+document.getElementById("tA").addEventListener("click",function(){showA=!showA;this.classList.toggle("on");draw();sim.alpha(0.03).restart();});
+document.getElementById("tT").addEventListener("click",function(){showT=!showT;this.classList.toggle("on");draw();sim.alpha(0.03).restart();});
+
+// Search
+document.getElementById("search").addEventListener("input",function(){
+  const q=this.value.toLowerCase().trim();
+  if(!q){
+    nodeEl.transition().duration(200).attr("opacity",1).attr("fill",nFill);
+    ringEl.transition().duration(200).attr("opacity",1);
+    lblEl.transition().duration(200).attr("fill",d=>d.t==="req"?"rgba(0,0,0,0.7)":"rgba(0,0,0,0.4)");
+    linkEl.transition().duration(200).attr("stroke",d=>d.type==="thematic"?"rgba(0,0,0,0.18)":"rgba(0,0,0,0.09)");
+    return;
+  }
+  const m=new Set(P.filter(p=>
+    p.title.toLowerCase().includes(q)||p.au.some(a=>a.toLowerCase().includes(q))||
+    p.tags.some(t=>t.toLowerCase().includes(q))||p.j.toLowerCase().includes(q)||
+    String(p.yr).includes(q)
+  ).map(p=>p.id));
+
+  nodeEl.transition().duration(200)
+    .attr("opacity",d=>m.has(d.id)?1:0.03)
+    .attr("fill",d=>m.has(d.id)?"rgba(0,0,0,0.85)":nFill(d));
+  ringEl.transition().duration(200).attr("opacity",d=>m.has(d.id)?1:0.05);
+  lblEl.transition().duration(200).attr("fill",d=>m.has(d.id)?"rgba(0,0,0,0.8)":"rgba(0,0,0,0.03)");
+  linkEl.transition().duration(200).attr("stroke","rgba(0,0,0,0.04)");
+
+  if(m.size===1){
+    const id=[...m][0], nd=nodes.find(n=>n.id===id);
+    if(nd) svg.transition().duration(400).call(zm.transform,
+      d3.zoomIdentity.translate(W/2,H/2).scale(1.8).translate(-nd.x,-nd.y));
+  }
+});
+
+// Mobile sidebar toggle
+const sidebar=document.getElementById("sidebar");
+const backdrop=document.getElementById("mob-backdrop");
+document.getElementById("mob-toggle").addEventListener("click",()=>{
+  sidebar.classList.add("open");
+  backdrop.classList.add("show");
+});
+function closeSidebar(){
+  sidebar.classList.remove("open");
+  backdrop.classList.remove("show");
+}
+document.getElementById("mob-close").addEventListener("click",closeSidebar);
+backdrop.addEventListener("click",closeSidebar);
+
+// Resize
+function onResize(){
+  W=wrap.clientWidth||window.innerWidth;
+  H=wrap.clientHeight||window.innerHeight;
+  svg.attr("viewBox",[0,0,W,H]).attr("width",W).attr("height",H);
+  sim.force("center",d3.forceCenter(W/2,H/2));
+  sim.force("x",d3.forceX(W/2).strength(0.025));
+  sim.force("y",d3.forceY(W/2).strength(0.025));
+  nodeEl.attr("r",nR);
+  ringEl.attr("r",d=>nR(d)+3);
+  lblEl.attr("dy",d=>nR(d)+12);
+  sim.force("collide",d3.forceCollide().radius(d=>nR(d)+10).strength(0.9));
+  sim.alpha(0.08).restart();
+}
+window.addEventListener("resize",onResize);
+// Ensure proper sizing after layout settles
+requestAnimationFrame(()=>{ requestAnimationFrame(onResize); });
+
+// Fit all nodes in view once simulation stabilizes
+let fitted = false;
+sim.on("end",()=>{
+  if(fitted) return;
+  fitted = true;
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  nodes.forEach(n=>{
+    if(n.x<minX)minX=n.x; if(n.x>maxX)maxX=n.x;
+    if(n.y<minY)minY=n.y; if(n.y>maxY)maxY=n.y;
+  });
+  const pad=60;
+  const bw=maxX-minX+pad*2, bh=maxY-minY+pad*2;
+  const cx=minX+bw/2-pad, cy=minY+bh/2-pad;
+  const scale=Math.max(Math.min(W/bw,H/bh,1.2)*0.92, 0.55);
+  svg.transition().duration(600).call(zm.transform,
+    d3.zoomIdentity.translate(W/2,H/2).scale(scale).translate(-cx,-cy));
+});
+</script>
+</body>
+</html>
